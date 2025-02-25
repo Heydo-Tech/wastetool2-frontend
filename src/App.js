@@ -5,6 +5,8 @@ import './App.css'; // Import the CSS file for styling
 import LoginPage from './Pages/LoginPage';
 import RegisterPage from './Pages/Register';
 import WasteImages from './Pages/WasteImages';
+import Cart from './Pages/Cart';
+import CartPage from './Pages/CartPage';
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
       <Route path="/" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/portal" element={<WasteImages />} />
+      <Route path="/cart" element={<Cart />} />
+      <Route path="/cartPage" element={<CartPage />} />
     </Routes>
   </Router>
   );

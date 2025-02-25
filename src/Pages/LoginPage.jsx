@@ -15,12 +15,13 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5002/login', formData);
-      const { success, role, name } = response.data;
+      const response = await axios.post('https://waste-tool.apnimandi.us/api/login', formData);
+      const { success, role, name ,userId} = response.data;
       console.log(response.data);
       if (success) {
         localStorage.setItem('username', name); // Save username to localStorage
-        localStorage.setItem('role', role); // Save username to localStorage
+        localStorage.setItem('role', role); 
+        localStorage.setItem('userId',userId);// Save username to localStorage
         if (role === 'admin') {
           navigate('/register');
         } else if (role === 'wasteImage') {

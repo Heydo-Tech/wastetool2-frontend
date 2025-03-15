@@ -3,23 +3,20 @@ import "./view.css";
 import NavBar from '../Components/NavBar';
 
 const Viewer = () => {
-  const [carts, setCarts] = useState([]); // State to store cart data
-  const [loading, setLoading] = useState(true); // State to handle loading state
-  const [error, setError] = useState(null); // State to handle errors
+  const [carts, setCarts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Fetch cart data from the backend API
   useEffect(() => {
     const fetchCarts = async () => {
       try {
-        const response = await fetch("https://waste-tool.apnimandi.us/api/carts", {
-          method: "GET",
-        });
+        const response = await fetch("https://waste-tool.apnimandi.us/api/carts");
 
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        const data = await response.json(); // Parse the response as JSON
+        const data = await response.json();
         setCarts(data);
         setLoading(false);
       } catch (err) {
@@ -31,7 +28,6 @@ const Viewer = () => {
     fetchCarts();
   }, []);
 
-  // Function to convert data to CSV format
   const convertToCSV = (data) => {
     const headers = [
       'User Name',
@@ -41,11 +37,11 @@ const Viewer = () => {
       'Quantity',
       'SKU',
       'Image',
-      'Date & Time',
-    ].join(','); // CSV headers
+      'Date & Time'
+    ].join(',');
 
-    const rows = data.map((cart) =>
-      cart.items.map((item) =>
+    const rows = data.flatMap(cart =>
+      cart.items.map(item => 
         [
           `"${cart.user?.name || 'N/A'}"`,
           `"${cart.user?.role || 'N/A'}"`,
@@ -54,15 +50,14 @@ const Viewer = () => {
           `"${item.quantity || 'N/A'}"`,
           `"${item.product?.sku || 'N/A'}"`,
           `"${item.product?.Image || 'No Image'}"`,
-          `"${new Date(cart.dateTime).toLocaleString() || 'N/A'}"`,
+          `"${item.dateTime ? new Date(item.dateTime).toLocaleString() : 'N/A'}"`
         ].join(',')
       )
-    ).flat(); // Flatten the array
+    );
 
-    return [headers, ...rows].join('\n'); // Combine headers and rows
+    return [headers, ...rows].join('\n');
   };
 
-  // Function to trigger CSV download
   const downloadCSV = () => {
     const csvData = convertToCSV(carts);
     const blob = new Blob([csvData], { type: 'text/csv' });
@@ -74,13 +69,8 @@ const Viewer = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <div>
@@ -99,11 +89,11 @@ const Viewer = () => {
             <th>Quantity</th>
             <th>SKU</th>
             <th>Image</th>
-            <th>Date & Time</th> {/* Added Date & Time Column */}
+            <th>Date & Time</th> 
           </tr>
         </thead>
         <tbody>
-          {carts?.map((cart) =>
+          {carts?.map(cart =>
             cart.items?.map((item, index) => (
               <tr key={`${cart._id}-${index}`}>
                 <td>{cart.user?.name || 'N/A'}</td>
@@ -123,7 +113,7 @@ const Viewer = () => {
                     'No Image'
                   )}
                 </td>
-                <td>{new Date(cart.dateTime).toLocaleString() || 'N/A'}</td> {/* Displaying Date & Time */}
+                <td>{item.dateTime ? new Date(item.dateTime).toLocaleString() : 'N/A'}</td> 
               </tr>
             ))
           )}

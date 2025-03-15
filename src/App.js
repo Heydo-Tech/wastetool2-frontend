@@ -7,6 +7,7 @@ import RegisterPage from './Pages/Register';
 import WasteImages from './Pages/WasteImages';
 import Cart from './Pages/Cart';
 import CartPage from './Pages/CartPage';
+import Viewer from './Pages/View';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <Route path="/portal" element={<WasteImages />} />
       <Route path="/cart" element={<Cart />} />
       <Route path="/cartPage" element={<CartPage />} />
+      <Route path="/view" element={<Viewer />} />
     </Routes>
   </Router>
   );

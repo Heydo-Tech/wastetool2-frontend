@@ -18,7 +18,7 @@ function WasteImages() {
       console.log(cart);
       navigate('/');
     }
-  }, [navigate]);
+  });
 
   useEffect(() => {
     axios
@@ -33,10 +33,21 @@ function WasteImages() {
         setInputValues(initialValues);
       })
       .catch((error) => console.error('Error fetching products:', error));
-  }, []);
+  });
 
+  const showToast = (message, type = "success") => {
+    const toast = document.createElement("div");
+    toast.innerText = message;
+    toast.className = `custom-toast ${type}`;
+    document.body.appendChild(toast);
+  
+    setTimeout(() => {
+      toast.remove();
+    }, 2000);
+  };
+  
   const addToCart = (product) => {
-    const existingCart = JSON.parse(localStorage.getItem('cart')) || [];
+    const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
   
     const updatedCart = existingCart.map((item) =>
       item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
@@ -49,10 +60,28 @@ function WasteImages() {
     }
   
     setCart(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+  
+    showToast(`added to cart!`, "success");
   };
   
-
+  const removeToCart = (product) => {
+    const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
+  
+    const updatedCart = existingCart
+      .map((item) =>
+        item._id === product._id
+          ? { ...item, quantity: item.quantity > 0 ? item.quantity - 1 : item.quantity }
+          : item
+      )
+      .filter((item) => item.quantity > 0); // Remove item if quantity is 0
+  
+    setCart(updatedCart);
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+  
+    showToast(` removed from cart!`, "info");
+  };
+  
   return (
     <div className="App">
       <NavBar></NavBar>
@@ -78,8 +107,8 @@ function WasteImages() {
               <h3 className="product-name">{product.productName}</h3>
               <p className="product-subcategory">{product.productSubcategory}</p>
               <p className="product-sku">SKU: {product.sku}</p>
-              <p>Waste Quantity: {product.Quantity || 0}</p>
               <button onClick={() => addToCart(product)}>Add to Cart</button>
+              <button onClick={() => removeToCart(product)}>Remove to Cart</button>
             </div>
           </div>
         ))}

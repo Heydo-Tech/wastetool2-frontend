@@ -26,6 +26,8 @@ const LoginPage = () => {
           navigate('/register');
         } else if (role === 'wasteImage') {
           navigate('/portal');
+        }else if(role==='view'){
+          navigate('/view');
         } else {
           setErrorMessage('Invalid role');
         }

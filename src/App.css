@@ -121,3 +121,26 @@ body {
     height: 180px;
   }
 }
+
+.custom-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0.9;
+  transition: opacity 0.3s;
+}
+
+.custom-toast.info {
+  background-color: #007bff;
+}
+
+.custom-toast.success {
+  background-color: #28a745;
+}

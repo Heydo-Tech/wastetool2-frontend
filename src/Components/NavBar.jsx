@@ -8,7 +8,7 @@ function NavBar() {
   return (
     <div className="navbar">
       <button className="nav-button" onClick={() => navigate('/cart')}>Cart</button>
-      <button className="nav-button" onClick={() => navigate('/cartpage')}>My Added Carts Items</button>
+      {/* <button className="nav-button" onClick={() => navigate('/cartpage')}>My Added Carts Items</button> */}
       <button className="nav-button" onClick={() => navigate('/portal')}>Home</button>
     </div>
   );

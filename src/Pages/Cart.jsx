@@ -12,6 +12,7 @@ function Cart() {
     setCart(storedCart);
   }, []);
 
+
   const removeFromCart = (productId) => {
     const updatedCart = cart.filter(product => product._id !== productId);
     setCart(updatedCart);
@@ -32,6 +33,8 @@ function Cart() {
     console.log(cartData); // Log cart data to debug
 
     try {
+      console.log(cartData)
+
       const response = await fetch('https://waste-tool.apnimandi.us/api/cart', {
         method: 'POST',
         headers: {
@@ -58,6 +61,7 @@ function Cart() {
     }
   };
 
+  
   return (
     <div className="cart-container">
       <NavBar></NavBar>

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import "./view.css";
 import NavBar from '../Components/NavBar';
-
 const Viewer = () => {
   const [carts, setCarts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +19,7 @@ const Viewer = () => {
         }
 
         const data = await response.json();
-
+        
         setCarts(data.carts || []);
         setTotalPages(data.pagination?.totalPages || 1);
         setLoading(false);
@@ -100,7 +99,7 @@ const Viewer = () => {
         <thead>
           <tr>
             <th>User Name</th>
-            <th>User Role</th>
+            {/* <th>User Role</th> */}
             <th>Product Name</th>
             <th>Product Subcategory</th>
             <th>Quantity</th>
@@ -114,7 +113,7 @@ const Viewer = () => {
             cart.items?.map((item, index) => (
               <tr key={`${cart._id}-${index}`}>
                 <td>{cart.user?.name || 'N/A'}</td>
-                <td>{cart.user?.role || 'N/A'}</td>
+                {/* <td>{cart.user?.role || 'N/A'}</td> */}
                 <td>{item.product?.productName || 'N/A'}</td>
                 <td>{item.product?.productSubcategory || 'N/A'}</td>
                 <td>{item.quantity || 'N/A'}</td>

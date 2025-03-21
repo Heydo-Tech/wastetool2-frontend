@@ -38,6 +38,7 @@ function Cart() {
       const response = await fetch('https://waste-tool.apnimandi.us/api/cart', {
         method: 'POST',
         headers: {
+          
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

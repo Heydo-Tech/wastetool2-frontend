@@ -18,7 +18,7 @@ function CartPage() {
 
     const fetchCart = async () => {
       try {
-        const response = await fetch(`https://waste-tool.apnimandi.us/api/cart/${userId}`);
+        const response = await fetch(` http://localhost:9004/cart/${userId}`);
         if (!response.ok) {
           throw new Error('Failed to fetch cart');
         }

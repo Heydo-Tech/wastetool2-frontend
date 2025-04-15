@@ -12,7 +12,7 @@ const RegisterPage = () => {
   // Fetch the list of users
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('https://waste-tool.apnimandi.us/api/users');
+      const response = await axios.get(' http://localhost:9004/users');
       setUsers(response.data.users);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -39,7 +39,7 @@ useEffect(()=>{
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('https://waste-tool.apnimandi.us/api/register', formData);
+      const response = await axios.post(' http://localhost:9004/register', formData);
       setSuccessMessage(response.data.message);
       setErrorMessage('');
       setFormData({ name: '', role: '', password: '' });

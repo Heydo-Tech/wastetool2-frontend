@@ -15,7 +15,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('https://waste-tool.apnimandi.us/api/login', formData);
+      const response = await axios.post(' http://localhost:9004/login', formData);
       const { success, role, name ,userId} = response.data;
       console.log(response.data);
       if (success) {

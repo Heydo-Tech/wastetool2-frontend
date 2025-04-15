@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Cart.css'; // Import the CSS file
 import NavBar from '../Components/NavBar';
+
 function Cart() {
   const [cart, setCart] = useState([]);
   const navigate = useNavigate();
@@ -12,9 +13,17 @@ function Cart() {
     setCart(storedCart);
   }, []);
 
-
   const removeFromCart = (productId) => {
     const updatedCart = cart.filter(product => product._id !== productId);
+    setCart(updatedCart);
+    localStorage.setItem('cart', JSON.stringify(updatedCart));
+  };
+
+  const updateQuantity = (productId, newQuantity) => {
+    if (newQuantity < 1) return; // Prevent zero or negative quantity
+    const updatedCart = cart.map(product => 
+      product._id === productId ? { ...product, quantity: newQuantity } : product
+    );
     setCart(updatedCart);
     localStorage.setItem('cart', JSON.stringify(updatedCart));
   };
@@ -33,12 +42,9 @@ function Cart() {
     console.log(cartData); // Log cart data to debug
 
     try {
-      console.log(cartData)
-
       const response = await fetch('https://waste-tool.apnimandi.us/api/cart', {
         method: 'POST',
         headers: {
-          
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -62,10 +68,9 @@ function Cart() {
     }
   };
 
-  
   return (
     <div className="cart-container">
-      <NavBar></NavBar>
+      <NavBar />
       <h1 className="cart-title">Shopping Cart</h1>
       {cart.length === 0 ? (
         <p className="empty-cart">Your cart is empty.</p>
@@ -78,7 +83,11 @@ function Cart() {
                 <h3>{product.productName}</h3>
                 <p>Subcategory: {product.productSubcategory}</p>
                 <p>SKU: {product.sku}</p>
-                <p>Waste Quantity: {product.quantity}</p>
+                <div className="quantity-control">
+                  <button className="quantity-button" onClick={() => updateQuantity(product._id, product.quantity - 1)}>-</button>
+                  <span>{product.quantity}</span>
+                  <button className="quantity-button" onClick={() => updateQuantity(product._id, product.quantity + 1)}>+</button>
+                </div>
                 <button className="remove-button" onClick={() => removeFromCart(product._id)}>Remove</button>
               </div>
             </div>

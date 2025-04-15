@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 const LoginPage = () => {
-  const [formData, setFormData] = useState({ name: '', role: '', password: '' });
-  const [errorMessage, setErrorMessage] = useState('');
+  const [formData, setFormData] = useState({
+    name: "",
+    role: "",
+    password: ""
+  });
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -15,63 +19,75 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(' http://localhost:9004/login', formData);
-      const { success, role, name ,userId} = response.data;
-      console.log(response.data);
+      const response = await axios.post(
+        "http://localhost:9004/login",
+        formData
+      );
+      const { success, role, name, userId } = response.data;
       if (success) {
-        localStorage.setItem('username', name); // Save username to localStorage
-        localStorage.setItem('role', role); 
-        localStorage.setItem('userId',userId);// Save username to localStorage
-        if (role === 'admin') {
-          navigate('/register');
-        } else if (role === 'wasteImage') {
-          navigate('/portal');
-        }else if(role==='view'){
-          navigate('/view');
+        localStorage.setItem("username", name);
+        localStorage.setItem("role", role);
+        localStorage.setItem("userId", userId);
+        if (role === "admin") {
+          navigate("/register");
+        } else if (role === "wasteImage") {
+          navigate("/portal");
+        } else if (role === "view") {
+          navigate("/view");
         } else {
-          setErrorMessage('Invalid role');
+          setErrorMessage("Invalid role");
         }
       } else {
-        setErrorMessage('Invalid credentials');
+        setErrorMessage("Invalid credentials");
       }
     } catch (error) {
-      setErrorMessage(error.response?.data?.message || 'Login failed');
+      setErrorMessage(error.response?.data?.message || "Login failed");
     }
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f4f8' }}>
-      <div style={{ width: '400px', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)', background: '#fff' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Login</h2>
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Name:</label>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
+          Login
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Name
+            </label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleChange}
               required
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
+              className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Password:</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               required
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
+              className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-          <button type="submit" style={{ width: '100%', padding: '10px', borderRadius: '4px', background: '#007BFF', color: '#fff', border: 'none' }}>
+          <button
+            type="submit"
+            className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+          >
             Login
           </button>
         </form>
-        {errorMessage && <p style={{ marginTop: '15px', color: 'red', textAlign: 'center' }}>{errorMessage}</p>}
+        {errorMessage && (
+          <p className="mt-4 text-center text-red-500">{errorMessage}</p>
+        )}
       </div>
     </div>
   );

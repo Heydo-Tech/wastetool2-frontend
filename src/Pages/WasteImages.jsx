@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import NavBar from '../Components/NavBar';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import NavBar from "../Components/NavBar";
 
 function WasteImages() {
   const [products, setProducts] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState([]);
   const [cartCount, setCartCount] = useState(0);
-
   const navigate = useNavigate();
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "wasteImage") {
-      navigate('/');
+      navigate("/");
     }
   }, [navigate]);
 
@@ -23,7 +22,7 @@ function WasteImages() {
       .then((response) => {
         setProducts(response.data);
       })
-      .catch((error) => console.error('Error fetching products:', error));
+      .catch((error) => console.error("Error fetching products:", error));
 
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     setCart(existingCart);
@@ -33,47 +32,44 @@ function WasteImages() {
   const showToast = (message, type = "success") => {
     const toast = document.createElement("div");
     toast.innerText = message;
-    toast.className = `custom-toast ${type}`;
+    toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white ${type === "success" ? "bg-green-500" : "bg-blue-500"} opacity-90`;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2000);
   };
 
   const addToCart = (product) => {
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
-
     const updatedCart = existingCart.map((item) =>
       item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
     );
-
-    const isProductInCart = existingCart.some((item) => item._id === product._id);
-
+    const isProductInCart = existingCart.some(
+      (item) => item._id === product._id
+    );
     if (!isProductInCart) {
       updatedCart.push({ ...product, quantity: 1 });
     }
-
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
     setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
-
-    showToast(`added to cart!`, "success");
+    showToast(`Added to cart!`, "success");
   };
 
   const removeToCart = (product) => {
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
-
     const updatedCart = existingCart
       .map((item) =>
         item._id === product._id
-          ? { ...item, quantity: item.quantity > 0 ? item.quantity - 1 : item.quantity }
+          ? {
+              ...item,
+              quantity: item.quantity > 0 ? item.quantity - 1 : item.quantity
+            }
           : item
       )
       .filter((item) => item.quantity > 0);
-
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
     setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
-
-    showToast(`removed from cart!`, "info");
+    showToast(`Removed from cart!`, "info");
   };
 
   const getCartQuantity = (productId) => {
@@ -82,50 +78,85 @@ function WasteImages() {
   };
 
   return (
-    <div className="App">
+    <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <h1 className="app-title">Product List</h1>
-
-      <div className="top-bar">
-        <div className="search-container">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search by product name or subcategory"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-4xl font-bold text-gray-800 text-center mb-8">
+          Product List
+        </h1>
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+          <div className="w-full sm:w-1/2 mb-4 sm:mb-0">
+            <input
+              type="text"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Search by product name or subcategory"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="text-lg font-medium text-gray-700">
+            🛒 Items in Cart: {cartCount}
+          </div>
         </div>
-        <div className="cart-counter">
-          🛒 Items in Cart: {cartCount}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products
+            .filter((product) => {
+              const name = product.productName?.toLowerCase() || "";
+              const subcategory =
+                product.productSubcategory?.toLowerCase() || "";
+              return (
+                name.includes(searchQuery.toLowerCase()) ||
+                subcategory.includes(searchQuery.toLowerCase())
+              );
+            })
+            .map((product) => (
+              <div
+                key={product._id}
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-all transform hover:-translate-y-1"
+              >
+                <div className="text-sm text-gray-500 mb-2">
+                  Quantity in Cart: {getCartQuantity(product._id)}
+                </div>
+                <img
+                  src={product.Image}
+                  alt={product.productName}
+                  className="w-full h-48 object-cover rounded-md mb-4"
+                />
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    {product.productName}
+                  </h3>
+                  <p className="text-gray-600">
+                    Subcategory: {product.productSubcategory}
+                  </p>
+                  <p className="text-gray-600">SKU: {product.sku}</p>
+                  <div className="flex justify-center gap-2 mt-4">
+                    <button
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                      onClick={() => addToCart(product)}
+                    >
+                      Add to Cart
+                    </button>
+                    <button
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+                      onClick={() => removeToCart(product)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+        <div className="text-center mt-8">
+          <button
+            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+            onClick={() => navigate("/cart")}
+          >
+            Go to Cart
+          </button>
         </div>
       </div>
-
-      <div className="product-list">
-        {products
-          .filter((product) => {
-            const name = product.productName?.toLowerCase() || '';
-            const subcategory = product.productSubcategory?.toLowerCase() || '';
-            return name.includes(searchQuery.toLowerCase()) || subcategory.includes(searchQuery.toLowerCase());
-          })
-          .map((product) => (
-            <div key={product._id} className="product-item">
-              <div className="cart-quantity-display">
-                Quantity in Cart: {getCartQuantity(product._id)}
-              </div>
-              <img src={product.Image} alt={product.productName} className="product-image" />
-              <div className="product-details">
-                <h3 className="product-name">{product.productName}</h3>
-                <p className="product-subcategory">{product.productSubcategory}</p>
-                <p className="product-sku">SKU: {product.sku}</p>
-                <button onClick={() => addToCart(product)}>Add to Cart</button>
-                <button onClick={() => removeToCart(product)}>Remove from Cart</button>
-              </div>
-            </div>
-          ))}
-      </div>
-
-      <button onClick={() => navigate('/cart')}>Go to Cart</button>
     </div>
   );
 }

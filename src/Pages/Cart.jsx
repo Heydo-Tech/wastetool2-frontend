@@ -1,102 +1,146 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Cart.css'; // Import the CSS file
-import NavBar from '../Components/NavBar';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import NavBar from "../Components/NavBar";
 
 function Cart() {
   const [cart, setCart] = useState([]);
   const navigate = useNavigate();
-  const userId = localStorage.getItem('userId'); // Retrieve user ID from local storage
+  const userId = localStorage.getItem("userId");
 
   useEffect(() => {
-    const storedCart = JSON.parse(localStorage.getItem('cart')) || [];
+    const storedCart = JSON.parse(localStorage.getItem("cart")) || [];
     setCart(storedCart);
   }, []);
 
   const removeFromCart = (productId) => {
-    const updatedCart = cart.filter(product => product._id !== productId);
+    const updatedCart = cart.filter((product) => product._id !== productId);
     setCart(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
   };
 
   const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity < 1) return; // Prevent zero or negative quantity
-    const updatedCart = cart.map(product => 
-      product._id === productId ? { ...product, quantity: newQuantity } : product
+    if (newQuantity < 1) return;
+    const updatedCart = cart.map((product) =>
+      product._id === productId
+        ? { ...product, quantity: newQuantity }
+        : product
     );
     setCart(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
   };
 
   const saveCartToBackend = async () => {
     if (!userId) {
-      alert('User not logged in!');
+      alert("User not logged in!");
       return;
     }
 
-    const cartData = cart.map(product => ({
+    const cartData = cart.map((product) => ({
       productId: product._id,
       quantity: product.quantity
     }));
 
-    console.log(cartData); // Log cart data to debug
-
     try {
-      const response = await fetch('https://waste-tool.apnimandi.us/api/cart', {
-        method: 'POST',
+      const response = await fetch("https://waste-tool.apnimandi.us/api/cart", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           userId,
-          items: cartData,
-        }),
+          items: cartData
+        })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save cart');
+        throw new Error(errorData.message || "Failed to save cart");
       }
 
-      alert('Cart saved successfully!');
-      localStorage.removeItem('cart');
-      navigate('/portal');
-      console.log('Cart saved:', await response.json());
+      alert("Cart saved successfully!");
+      localStorage.removeItem("cart");
+      navigate("/portal");
     } catch (error) {
-      console.error('Error saving cart:', error);
+      console.error("Error saving cart:", error);
       alert(`Error: ${error.message}`);
     }
   };
 
   return (
-    <div className="cart-container">
+    <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <h1 className="cart-title">Shopping Cart</h1>
-      {cart.length === 0 ? (
-        <p className="empty-cart">Your cart is empty.</p>
-      ) : (
-        <div className="cart-items">
-          {cart.map((product) => (
-            <div key={product._id} className="cart-item">
-              <img src={product.Image} alt={product.productName} className="cart-image" />
-              <div className="cart-details">
-                <h3>{product.productName}</h3>
-                <p>Subcategory: {product.productSubcategory}</p>
-                <p>SKU: {product.sku}</p>
-                <div className="quantity-control">
-                  <button className="quantity-button" onClick={() => updateQuantity(product._id, product.quantity - 1)}>-</button>
-                  <span>{product.quantity}</span>
-                  <button className="quantity-button" onClick={() => updateQuantity(product._id, product.quantity + 1)}>+</button>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">
+          Shopping Cart
+        </h1>
+        {cart.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">
+            Your cart is empty.
+          </p>
+        ) : (
+          <div className="space-y-6">
+            {cart.map((product) => (
+              <div
+                key={product._id}
+                className="flex items-center bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              >
+                <img
+                  src={product.Image}
+                  alt={product.productName}
+                  className="w-24 h-24 object-cover rounded-md mr-6"
+                />
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    {product.productName}
+                  </h3>
+                  <p className="text-gray-600">
+                    Subcategory: {product.productSubcategory}
+                  </p>
+                  <p className="text-gray-600">SKU: {product.sku}</p>
+                  <div className="flex items-center mt-2">
+                    <button
+                      className="px-3 py-1 bg-indigo-600 text-white rounded-l-md hover:bg-indigo-700"
+                      onClick={() =>
+                        updateQuantity(product._id, product.quantity - 1)
+                      }
+                    >
+                      -
+                    </button>
+                    <span className="px-4">{product.quantity}</span>
+                    <button
+                      className="px-3 py-1 bg-indigo-600 text-white rounded-r-md hover:bg-indigo-700"
+                      onClick={() =>
+                        updateQuantity(product._id, product.quantity + 1)
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    className="mt-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+                    onClick={() => removeFromCart(product._id)}
+                  >
+                    Remove
+                  </button>
                 </div>
-                <button className="remove-button" onClick={() => removeFromCart(product._id)}>Remove</button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
+        <div className="flex justify-between mt-8">
+          <button
+            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+            onClick={saveCartToBackend}
+          >
+            Save Cart
+          </button>
+          <button
+            className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-all"
+            onClick={() => navigate("/portal")}
+          >
+            Back to Products
+          </button>
         </div>
-      )}
-      <div className="cart-actions">
-        <button className="save-cart-button" onClick={saveCartToBackend}>Save Cart</button>
-        <button className="back-button" onClick={() => navigate('/portal')}>Back to Products</button>
       </div>
     </div>
   );

@@ -73,12 +73,21 @@ const Viewer = () => {
 
   if (loading)
     return (
-      <div className="text-center text-gray-600 text-lg mt-16">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 flex flex-col items-center space-y-4 animate-fade-in">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-solid"></div>
+          <p className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">
+            Loading...
+          </p>
+        </div>
+      </div>
     );
   if (error)
     return (
-      <div className="text-center text-red-500 text-lg mt-16">
-        Error: {error}
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 border-l-4 border-red-500 animate-shake">
+          <p className="text-lg font-semibold text-red-600">Error: {error}</p>
+        </div>
       </div>
     );
 

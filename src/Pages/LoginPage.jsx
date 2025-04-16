@@ -20,7 +20,7 @@ const LoginPage = () => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        "http://localhost:9004/login",
+        "https://waste-tool.apnimandi.us/api/login",
         formData
       );
       const { success, role, name, userId } = response.data;

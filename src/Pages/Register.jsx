@@ -15,7 +15,9 @@ const RegisterPage = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get("http://localhost:9004/users");
+      const response = await axios.get(
+        "https://waste-tool.apnimandi.us/api/users"
+      );
       setUsers(response.data.users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -38,7 +40,7 @@ const RegisterPage = () => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        "http://localhost:9004/register",
+        "https://waste-tool.apnimandi.us/api/register",
         formData
       );
       setSuccessMessage(response.data.message);
@@ -54,8 +56,8 @@ const RegisterPage = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">
+        <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
+          <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent mb-6">
             Register New User
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,7 +102,7 @@ const RegisterPage = () => {
             </div>
             <button
               type="submit"
-              className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all"
+              className="w-full py-3 bg-gradient-to-r from-indigo-900 to-pink-900 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-pink-600 transition-all"
             >
               Register
             </button>

@@ -8,6 +8,8 @@ function WasteImages() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState([]);
   const [cartCount, setCartCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,12 +19,23 @@ function WasteImages() {
   }, [navigate]);
 
   useEffect(() => {
-    axios
-      .get(`https://waste-tool.apnimandi.us/api/api/products`)
-      .then((response) => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(
+          `https://waste-tool.apnimandi.us/api/api/products`
+        );
         setProducts(response.data);
-      })
-      .catch((error) => console.error("Error fetching products:", error));
+        setError(null);
+      } catch (error) {
+        setError(error.message || "Failed to fetch products");
+        console.error("Error fetching products:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
 
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     setCart(existingCart);
@@ -77,6 +90,26 @@ function WasteImages() {
     return productInCart ? productInCart.quantity : 0;
   };
 
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 flex flex-col items-center space-y-4 animate-fade-in">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-solid"></div>
+          <p className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">
+            Loading...
+          </p>
+        </div>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 border-l-4 border-red-500 animate-shake">
+          <p className="text-lg font-semibold text-red-600">Error: {error}</p>
+        </div>
+      </div>
+    );
+
   return (
     <div className="min-h-screen bg-gray-100">
       <NavBar />
@@ -126,9 +159,7 @@ function WasteImages() {
                   <h3 className="text-xl font-semibold text-gray-800">
                     {product.productName}
                   </h3>
-                  <p className="text-gray-600">
-                    Subcategory: {product.productSubcategory}
-                  </p>
+                  <p className="text-gray-600">{product.productSubcategory}</p>
                   <p className="text-gray-600">SKU: {product.sku}</p>
                   <div className="flex justify-center gap-2 mt-4">
                     <button

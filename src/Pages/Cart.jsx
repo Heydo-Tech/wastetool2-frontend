@@ -99,7 +99,7 @@ function Cart() {
                   <p className="text-gray-600">SKU: {product.sku}</p>
                   <div className="flex items-center mt-2">
                     <button
-                      className="px-3 py-1 bg-indigo-600 text-white rounded-l-md hover:bg-indigo-700"
+                      className="px-3 py-1 bg-[#F47820] text-white rounded-l-md hover:bg-[#73C049]"
                       onClick={() =>
                         updateQuantity(product._id, product.quantity - 1)
                       }
@@ -108,7 +108,7 @@ function Cart() {
                     </button>
                     <span className="px-4">{product.quantity}</span>
                     <button
-                      className="px-3 py-1 bg-indigo-600 text-white rounded-r-md hover:bg-indigo-700"
+                      className="px-3 py-1 bg-[#F47820] text-white rounded-r-md hover:bg-[#73C049]"
                       onClick={() =>
                         updateQuantity(product._id, product.quantity + 1)
                       }
@@ -129,7 +129,7 @@ function Cart() {
         )}
         <div className="flex justify-between mt-8">
           <button
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+            className="px-6 py-3 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
             onClick={saveCartToBackend}
           >
             Save Cart

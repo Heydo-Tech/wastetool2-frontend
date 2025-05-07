@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import NavBar from "../Components/NavBar";
 
 const Viewer = () => {
@@ -7,27 +8,104 @@ const Viewer = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchProgress, setSearchProgress] = useState("");
   const limit = 10;
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        const response = await fetch(
-          `https://waste-tool.apnimandi.us/api/carts/flat?page=${page}&limit=${limit}`
+    if (localStorage.getItem("role") !== "view") {
+      navigate("/");
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!searchActive) {
+      const fetchItems = async () => {
+        try {
+          setLoading(true);
+          const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${page}&limit=${limit}`;
+          const response = await fetch(url);
+          if (!response.ok)
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          const data = await response.json();
+          setItems(data.items || []);
+          setTotalPages(data.pagination?.totalPages || 1);
+          setError(null);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchItems();
+    }
+  }, [page, searchActive]);
+
+  const fetchAllPages = async (sku) => {
+    try {
+      setLoading(true);
+      setSearchProgress("Fetching page 1...");
+
+      // Fetch first page to get totalPages
+      const firstUrl = `https://waste-tool.apnimandi.us/api/carts/flat?page=1&limit=${limit}`;
+      const firstResponse = await fetch(firstUrl);
+      if (!firstResponse.ok)
+        throw new Error(`HTTP error! Status: ${firstResponse.status}`);
+      const firstData = await firstResponse.json();
+      const totalPages = firstData.pagination?.totalPages || 1;
+      let allItems = firstData.items || [];
+
+      // Fetch remaining pages concurrently
+      const pagePromises = [];
+      for (let p = 2; p <= totalPages; p++) {
+        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
+        pagePromises.push(
+          fetch(url)
+            .then((res) => {
+              setSearchProgress(`Fetching page ${p} of ${totalPages}...`);
+              if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+              return res.json();
+            })
+            .then((data) => data.items || [])
         );
-        if (!response.ok)
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        setItems(data.items || []);
-        setTotalPages(data.pagination?.totalPages || 1);
-        setLoading(false);
-      } catch (err) {
-        setError(err.message);
-        setLoading(false);
       }
-    };
-    fetchItems();
-  }, [page]);
+
+      const remainingItems = await Promise.all(pagePromises);
+      allItems = allItems.concat(...remainingItems);
+
+      // Filter for exact SKU match
+      const matchedItems = allItems.filter((item) => item.product?.sku === sku);
+
+      setItems(matchedItems);
+      setTotalPages(1); // No pagination for search results
+      setError(
+        matchedItems.length === 0 ? "No items found with this SKU" : null
+      );
+      setSearchProgress("");
+    } catch (err) {
+      setError(err.message);
+      setSearchProgress("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
+    if (searchQuery.length >= 3) {
+      setSearchActive(true);
+      fetchAllPages(searchQuery);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchActive(false);
+    setPage(1);
+    setSearchProgress("");
+    setError(null);
+  };
 
   const nextPage = () => page < totalPages && setPage(page + 1);
   const prevPage = () => page > 1 && setPage(page - 1);
@@ -66,7 +144,7 @@ const Viewer = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cart_items_page_${page}.csv`;
+    a.download = `cart_items${searchActive ? "_search" : "_page_" + page}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -75,9 +153,9 @@ const Viewer = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 flex flex-col items-center space-y-4 animate-fade-in">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-solid"></div>
-          <p className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">
-            Loading...
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#F47820] border-solid"></div>
+          <p className="text-lg font-semibold bg-gradient-to-r from-[#F47820] to-[#73C049] bg-clip-text text-transparent">
+            {searchProgress || "Loading..."}
           </p>
         </div>
       </div>
@@ -98,10 +176,34 @@ const Viewer = () => {
         <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">
           Cart Items Viewer
         </h1>
+        <div className="flex justify-center mb-8 space-x-4">
+          <input
+            type="text"
+            className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Search by SKU (3+ characters)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button
+            onClick={handleSearch}
+            disabled={searchQuery.length < 3}
+            className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+          >
+            Search
+          </button>
+          {searchActive && (
+            <button
+              onClick={clearSearch}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         <div className="mb-6 text-center">
           <button
             onClick={downloadCSV}
-            className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+            className="px-6 py-2 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
           >
             Export Current Page to CSV
           </button>
@@ -171,25 +273,27 @@ const Viewer = () => {
             </tbody>
           </table>
         </div>
-        <div className="flex justify-center items-center mt-6 space-x-4">
-          <button
-            onClick={prevPage}
-            disabled={page === 1}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:bg-gray-300 hover:bg-indigo-700 transition-all"
-          >
-            Previous
-          </button>
-          <span className="text-gray-600">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            onClick={nextPage}
-            disabled={page === totalPages}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:bg-gray-300 hover:bg-indigo-700 transition-all"
-          >
-            Next
-          </button>
-        </div>
+        {!searchActive && (
+          <div className="flex justify-center items-center mt-6 space-x-4">
+            <button
+              onClick={prevPage}
+              disabled={page === 1}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Previous
+            </button>
+            <span className="text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={page === totalPages}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

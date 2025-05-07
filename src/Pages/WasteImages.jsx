@@ -94,8 +94,8 @@ function WasteImages() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 flex flex-col items-center space-y-4 animate-fade-in">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-solid"></div>
-          <p className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#F47820] border-solid"></div>
+          <p className="text-lg font-semibold bg-gradient-to-r from-[#F47820] to-[#73C049] bg-clip-text text-transparent">
             Loading...
           </p>
         </div>
@@ -163,7 +163,7 @@ function WasteImages() {
                   <p className="text-gray-600">SKU: {product.sku}</p>
                   <div className="flex justify-center gap-2 mt-4">
                     <button
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                      className="px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
                       onClick={() => addToCart(product)}
                     >
                       Add to Cart
@@ -181,7 +181,7 @@ function WasteImages() {
         </div>
         <div className="text-center mt-8">
           <button
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all"
+            className="px-6 py-3 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
             onClick={() => navigate("/cart")}
           >
             Go to Cart

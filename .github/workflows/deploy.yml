@@ -35,6 +35,6 @@ jobs:
             git pull https://${{ secrets.TOKEN }}:${{ secrets.TOKEN }}@github.com/Heydo-Tech/frontend.git
             npm install --force
             npm run build
-            rm -rf /var/www/frontend/build
-            mv /root/wastetool2.apnimandi.us/frontend/build /var/www/frontend/
+            rm -rf /var/www/frontend/dist
+            mv /root/wastetool2.apnimandi.us/frontend/dist /var/www/frontend/
             systemctl restart nginx

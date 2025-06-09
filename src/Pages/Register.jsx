@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -13,8 +12,6 @@ const RegisterPage = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [users, setUsers] = useState([]);
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { logout } = useAuth();
 
   const fetchUsers = async () => {
     try {
@@ -28,11 +25,11 @@ const RegisterPage = () => {
   };
 
   useEffect(() => {
-    if (user?.role !== import.meta.env.VITE_ADMIN_ROLE) {
+    if (localStorage.getItem("role") !== "admin") {
       navigate("/");
     }
     fetchUsers();
-  }, [navigate, user]);
+  }, [navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,14 +53,9 @@ const RegisterPage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      localStorage.clear();
-      window.location.href = import.meta.env.VITE_SSO_LOGIN_URL;
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/");
   };
 
   return (
@@ -101,7 +93,7 @@ const RegisterPage = () => {
               <input
                 type="text"
                 name="role"
-                value={formData.role} // Fixed: Use formData.role, not formData.name
+                value={formData.name}
                 onChange={handleChange}
                 required
                 className="mt-1 w-full px-4 py-2 border border-[#A8CABA] rounded-lg focus:ring-[#F4C430] focus:border-[#F4C430]"

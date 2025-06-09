@@ -1,6 +1,5 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import {
   ShoppingCartIcon,
   ArrowLeftOnRectangleIcon
@@ -8,21 +7,15 @@ import {
 
 function NavBar() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  const role = localStorage.getItem("role") || "unknown";
+  const role = localStorage.getItem("role");
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      localStorage.clear();
-      window.location.href = import.meta.env.VITE_SSO_LOGIN_URL;
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/");
   };
 
   return (
-    <nav className="bg-[#F47820] shadow-2xl backdrop-blur-lg sticky top-0 z-50">
+    <nav className="bg-[#F47820] shadow-2xl backdrop-blur-lg sticky top-0 z-50 ">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-20">
           <div className="flex-grow flex">
@@ -34,7 +27,7 @@ function NavBar() {
               />
             </div>
           </div>
-          {role !== import.meta.env.VITE_VIEW_ROLE && (
+          {role !== "view" && (
             <>
               <button
                 className="relative px-6 py-3 text-white font-semibold text-lg rounded-xl bg-[#73C049] hover:bg-[#5DA738] border border-[#F47820]/50 shadow-lg hover:shadow-xl hover:shadow-[#F47820]/50 transform hover:-translate-y-1 transition-all duration-300 ease-in-out group overflow-hidden flex items-center space-x-2"

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import NavBar from "../Components/NavBar";
 
 function Cart() {
@@ -16,6 +17,12 @@ function Cart() {
     const updatedCart = cart.filter((product) => product._id !== productId);
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
+    toast.info("Item removed from cart!", {
+      position: "bottom-center",
+      autoClose: 2000,
+      hideProgressBar: true,
+      style: { backgroundColor: "#F47820", color: "#FFFFFF" },
+    });
   };
 
   const updateQuantity = (productId, newQuantity) => {
@@ -27,29 +34,40 @@ function Cart() {
     );
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
+    toast.success("Quantity updated!", {
+      position: "bottom-center",
+      autoClose: 2000,
+      hideProgressBar: true,
+      style: { backgroundColor: "#73C049", color: "#FFFFFF" },
+    });
   };
 
   const saveCartToBackend = async () => {
     if (!userId) {
-      alert("User not logged in!");
+      toast.warn("User not logged in!", {
+        position: "bottom-center",
+        autoClose: 3000,
+        hideProgressBar: true,
+        style: { backgroundColor: "#F47820", color: "#FFFFFF" },
+      });
       return;
     }
 
     const cartData = cart.map((product) => ({
       productId: product._id,
-      quantity: product.quantity
+      quantity: product.quantity,
     }));
 
     try {
       const response = await fetch("https://waste-tool.apnimandi.us/api/cart", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           userId,
-          items: cartData
-        })
+          items: cartData,
+        }),
       });
 
       if (!response.ok) {
@@ -57,12 +75,22 @@ function Cart() {
         throw new Error(errorData.message || "Failed to save cart");
       }
 
-      alert("Cart saved successfully!");
+      toast.success("Cart saved successfully!", {
+        position: "bottom-center",
+        autoClose: 2000,
+        hideProgressBar: true,
+        style: { backgroundColor: "#73C049", color: "#FFFFFF" },
+      });
       localStorage.removeItem("cart");
       navigate("/portal");
     } catch (error) {
       console.error("Error saving cart:", error);
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`, {
+        position: "bottom-center",
+        autoClose: 3000,
+        hideProgressBar: true,
+        style: { backgroundColor: "#F47820", color: "#FFFFFF" },
+      });
     }
   };
 

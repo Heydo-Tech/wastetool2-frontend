@@ -25,7 +25,20 @@ function WasteImages() {
         const response = await axios.get(
           `https://waste-tool.apnimandi.us/api/api/products`
         );
-        setProducts(response.data);
+        // Sort products alphabetically, ignoring "Apni Mandi" prefix
+        const sortedProducts = response.data.sort((a, b) => {
+          const getSortName = (name) => {
+            if (!name) return ""; // Handle null/undefined
+            const lowerName = name.toLowerCase();
+            const prefix = "apni mandi ";
+            if (lowerName.startsWith(prefix)) {
+              return name.substring(prefix.length).trim();
+            }
+            return name;
+          };
+          return getSortName(a.productName).localeCompare(getSortName(b.productName));
+        });
+        setProducts(sortedProducts);
         setError(null);
       } catch (error) {
         setError(error.message || "Failed to fetch products");
@@ -45,44 +58,41 @@ function WasteImages() {
   const showToast = (message, type = "success") => {
     const toast = document.createElement("div");
     toast.innerText = message;
-    toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white ${type === "success" ? "bg-green-500" : "bg-blue-500"} opacity-90`;
+    toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white ${
+      type === "success" ? "bg-[#73C049]" : "bg-[#F47820]"
+    } opacity-90`;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2000);
   };
 
-  const addToCart = (product) => {
-    const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
-    const updatedCart = existingCart.map((item) =>
-      item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
-    );
-    const isProductInCart = existingCart.some(
-      (item) => item._id === product._id
-    );
-    if (!isProductInCart) {
-      updatedCart.push({ ...product, quantity: 1 });
-    }
-    setCart(updatedCart);
-    localStorage.setItem("cart", JSON.stringify(updatedCart));
-    setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
-    showToast(`Added to cart!`, "success");
-  };
+  const updateCartQuantity = (product, newQuantity) => {
+    if (newQuantity < 0) return; // Prevent negative quantity
 
-  const removeToCart = (product) => {
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
-    const updatedCart = existingCart
-      .map((item) =>
-        item._id === product._id
-          ? {
-              ...item,
-              quantity: item.quantity > 0 ? item.quantity - 1 : item.quantity
-            }
-          : item
-      )
-      .filter((item) => item.quantity > 0);
+    let updatedCart;
+
+    if (newQuantity === 0) {
+      // Remove product from cart
+      updatedCart = existingCart.filter((item) => item._id !== product._id);
+      showToast("Removed from cart!", "info");
+    } else {
+      // Update or add product
+      const isProductInCart = existingCart.some(
+        (item) => item._id === product._id
+      );
+      if (isProductInCart) {
+        updatedCart = existingCart.map((item) =>
+          item._id === product._id ? { ...item, quantity: newQuantity } : item
+        );
+      } else {
+        updatedCart = [...existingCart, { ...product, quantity: newQuantity }];
+      }
+      showToast("Updated cart!", "success");
+    }
+
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
     setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
-    showToast(`Removed from cart!`, "info");
   };
 
   const getCartQuantity = (productId) => {
@@ -101,11 +111,12 @@ function WasteImages() {
         </div>
       </div>
     );
+
   if (error)
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 border-l-4 border-red-500 animate-shake">
-          <p className="text-lg font-semibold text-red-600">Error: {error}</p>
+        <div className="bg-white p-8 rounded-lg shadow-xl border-l-4 border-gray-500">
+          <p className="text-lg font-semibold text-gray-600">Error: {error}</p>
         </div>
       </div>
     );
@@ -121,7 +132,7 @@ function WasteImages() {
           <div className="w-full sm:w-1/2 mb-4 sm:mb-0">
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#73C049] focus:border-[#73C049]"
               placeholder="Search by product name or subcategory"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -162,18 +173,42 @@ function WasteImages() {
                   <p className="text-gray-600">{product.productSubcategory}</p>
                   <p className="text-gray-600">SKU: {product.sku}</p>
                   <div className="flex justify-center gap-2 mt-4">
-                    <button
-                      className="px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
-                      onClick={() => addToCart(product)}
-                    >
-                      Add to Cart
-                    </button>
-                    <button
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
-                      onClick={() => removeToCart(product)}
-                    >
-                      Remove
-                    </button>
+                    {getCartQuantity(product._id) === 0 ? (
+                      <button
+                        className="px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
+                        onClick={() => updateCartQuantity(product, 1)}
+                      >
+                        Add to Cart
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
+                          onClick={() =>
+                            updateCartQuantity(
+                              product,
+                              getCartQuantity(product._id) - 1
+                            )
+                          }
+                        >
+                          -
+                        </button>
+                        <span className="text-lg font-semibold text-gray-800">
+                          {getCartQuantity(product._id)}
+                        </span>
+                        <button
+                          className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
+                          onClick={() =>
+                            updateCartQuantity(
+                              product,
+                              getCartQuantity(product._id) + 1
+                            )
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

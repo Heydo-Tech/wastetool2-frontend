@@ -28,16 +28,14 @@ function WasteImages() {
         // Sort products alphabetically, ignoring "Apni Mandi" prefix
         const sortedProducts = response.data.sort((a, b) => {
           const getSortName = (name) => {
-            if (!name) return ""; // Handle null/undefined
-            const lowerName = name.toLowerCase();
-            const prefix = "apni mandi ";
-            if (lowerName.startsWith(prefix)) {
-              return name.substring(prefix.length).trim();
-            }
-            return name;
+            if (!name) return "";
+            const lowerName = name.toLowerCase().trim();
+            const prefixRegex = /^apni mandi\s+/i;
+            return lowerName.replace(prefixRegex, "");
           };
           return getSortName(a.productName).localeCompare(getSortName(b.productName));
         });
+        console.log("Sorted products:", sortedProducts.map(p => p.productName));
         setProducts(sortedProducts);
         setError(null);
       } catch (error) {
@@ -66,17 +64,16 @@ function WasteImages() {
   };
 
   const updateCartQuantity = (product, newQuantity) => {
-    if (newQuantity < 0) return; // Prevent negative quantity
+    if (newQuantity < 0) return;
+    console.log("updateCartQuantity: Product:", product._id, "New Quantity:", newQuantity);
 
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     let updatedCart;
 
     if (newQuantity === 0) {
-      // Remove product from cart
       updatedCart = existingCart.filter((item) => item._id !== product._id);
       showToast("Removed from cart!", "info");
     } else {
-      // Update or add product
       const isProductInCart = existingCart.some(
         (item) => item._id === product._id
       );
@@ -98,6 +95,18 @@ function WasteImages() {
   const getCartQuantity = (productId) => {
     const productInCart = cart.find((item) => item._id === productId);
     return productInCart ? productInCart.quantity : 0;
+  };
+
+  const getDisplayName = (name) => {
+    if (!name) {
+      console.log("getDisplayName: Empty name");
+      return "";
+    }
+    const lowerName = name.toLowerCase().trim();
+    const prefixRegex = /^apni mandi\s+/i;
+    const displayName = name.replace(prefixRegex, "").trim();
+    console.log(`getDisplayName: Input: "${name}", Output: "${displayName}"`);
+    return displayName;
   };
 
   if (loading)
@@ -163,12 +172,12 @@ function WasteImages() {
                 </div>
                 <img
                   src={product.Image}
-                  alt={product.productName}
+                  alt={getDisplayName(product.productName)}
                   className="w-full h-48 object-cover rounded-md mb-4"
                 />
                 <div className="text-center">
                   <h3 className="text-xl font-semibold text-gray-800">
-                    {product.productName}
+                    {getDisplayName(product.productName)}
                   </h3>
                   <p className="text-gray-600">{product.productSubcategory}</p>
                   <p className="text-gray-600">SKU: {product.sku}</p>
@@ -193,9 +202,23 @@ function WasteImages() {
                         >
                           -
                         </button>
-                        <span className="text-lg font-semibold text-gray-800">
-                          {getCartQuantity(product._id)}
-                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={getCartQuantity(product._id)}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value, 10);
+                            if (!isNaN(value) && value >= 0) {
+                              updateCartQuantity(product, value);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              updateCartQuantity(product, 0);
+                            }
+                          }}
+                          className="w-12 text-center text-lg font-semibold text-gray-800 border border-gray-300 rounded focus:ring-[#73C049] focus:border-[#73C049]"
+                        />
                         <button
                           className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
                           onClick={() =>

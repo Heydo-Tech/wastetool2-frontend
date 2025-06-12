@@ -10,6 +10,8 @@ function WasteImages() {
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [inputValues, setInputValues] = useState({});
+  const [showInput, setShowInput] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,13 +21,13 @@ function WasteImages() {
   }, [navigate]);
 
   useEffect(() => {
+    console.log("useEffect: Fetching data and initializing cart");
     const fetchData = async () => {
       try {
         setLoading(true);
         const response = await axios.get(
           `https://waste-tool.apnimandi.us/api/api/products`
         );
-        // Sort products alphabetically, ignoring "Apni Mandi" prefix
         const sortedProducts = response.data.sort((a, b) => {
           const getSortName = (name) => {
             if (!name) return "";
@@ -51,9 +53,15 @@ function WasteImages() {
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     setCart(existingCart);
     setCartCount(existingCart.reduce((acc, item) => acc + item.quantity, 0));
+    const initialInputValues = {};
+    existingCart.forEach(item => {
+      initialInputValues[item._id] = String(item.quantity);
+    });
+    setInputValues(initialInputValues);
   }, []);
 
   const showToast = (message, type = "success") => {
+    console.log(`showToast: ${message}, Type: ${type}`);
     const toast = document.createElement("div");
     toast.innerText = message;
     toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white ${
@@ -90,6 +98,10 @@ function WasteImages() {
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
     setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
+    setInputValues(prev => ({
+      ...prev,
+      [product._id]: String(newQuantity)
+    }));
   };
 
   const getCartQuantity = (productId) => {
@@ -108,6 +120,52 @@ function WasteImages() {
     console.log(`getDisplayName: Input: "${name}", Output: "${displayName}"`);
     return displayName;
   };
+
+  const handleInputChange = (productId, value) => {
+    console.log(`handleInputChange: Product: ${productId}, Value: "${value}"`);
+    setInputValues(prev => ({
+      ...prev,
+      [productId]: value
+    }));
+  };
+
+  const handleInputSubmit = (product) => {
+    const inputValue = inputValues[product._id] || "";
+    console.log(`handleInputSubmit: Product: ${product._id}, Input: "${inputValue}"`);
+    const parsedValue = parseInt(inputValue, 10);
+    if (inputValue === "") {
+      updateCartQuantity(product, 0);
+    } else if (!isNaN(parsedValue) && parsedValue >= 0) {
+      updateCartQuantity(product, parsedValue);
+    } else {
+      setInputValues(prev => ({
+        ...prev,
+        [product._id]: String(getCartQuantity(product._id))
+      }));
+    }
+    // Reset UI to "Add to Cart"
+    setShowInput(prev => ({
+      ...prev,
+      [product._id]: false
+    }));
+  };
+
+  const handleAddToCart = (product) => {
+    const currentQuantity = getCartQuantity(product._id);
+    setShowInput(prev => ({
+      ...prev,
+      [product._id]: true
+    }));
+    setInputValues(prev => ({
+      ...prev,
+      [product._id]: String(currentQuantity || 1)
+    }));
+    if (!currentQuantity) {
+      updateCartQuantity(product, 1);
+    }
+  };
+
+  console.log("Rendering WasteImages: products:", products.length, "cart:", cart.length, "showInput:", showInput);
 
   if (loading)
     return (
@@ -147,9 +205,6 @@ function WasteImages() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="text-lg font-medium text-gray-700">
-            🛒 Items in Cart: {cartCount}
-          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products
@@ -182,14 +237,7 @@ function WasteImages() {
                   <p className="text-gray-600">{product.productSubcategory}</p>
                   <p className="text-gray-600">SKU: {product.sku}</p>
                   <div className="flex justify-center gap-2 mt-4">
-                    {getCartQuantity(product._id) === 0 ? (
-                      <button
-                        className="px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
-                        onClick={() => updateCartQuantity(product, 1)}
-                      >
-                        Add to Cart
-                      </button>
-                    ) : (
+                    {showInput[product._id] ? (
                       <div className="flex items-center gap-2">
                         <button
                           className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
@@ -205,16 +253,12 @@ function WasteImages() {
                         <input
                           type="number"
                           min="0"
-                          value={getCartQuantity(product._id)}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value, 10);
-                            if (!isNaN(value) && value >= 0) {
-                              updateCartQuantity(product, value);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              updateCartQuantity(product, 0);
+                          value={inputValues[product._id] ?? getCartQuantity(product._id)}
+                          onChange={(e) => handleInputChange(product._id, e.target.value)}
+                          onBlur={() => handleInputSubmit(product)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleInputSubmit(product);
                             }
                           }}
                           className="w-12 text-center text-lg font-semibold text-gray-800 border border-gray-300 rounded focus:ring-[#73C049] focus:border-[#73C049]"
@@ -231,6 +275,13 @@ function WasteImages() {
                           +
                         </button>
                       </div>
+                    ) : (
+                      <button
+                        className="px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
+                        onClick={() => handleAddToCart(product)}
+                      >
+                        Add to Cart
+                      </button>
                     )}
                   </div>
                 </div>

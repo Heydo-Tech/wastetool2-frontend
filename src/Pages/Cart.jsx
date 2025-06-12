@@ -5,6 +5,7 @@ import NavBar from "../Components/NavBar";
 
 function Cart() {
   const [cart, setCart] = useState([]);
+  const [isSaving, setIsSaving] = useState(false); // New loading state
   const navigate = useNavigate();
   const userId = localStorage.getItem("userId");
 
@@ -53,6 +54,8 @@ function Cart() {
       return;
     }
 
+    setIsSaving(true); // Disable button
+
     const cartData = cart.map((product) => ({
       productId: product._id,
       quantity: product.quantity,
@@ -91,6 +94,8 @@ function Cart() {
         hideProgressBar: true,
         style: { backgroundColor: "#F47820", color: "#FFFFFF" },
       });
+    } finally {
+      setIsSaving(false); // Re-enable button
     }
   };
 
@@ -157,10 +162,13 @@ function Cart() {
         )}
         <div className="flex justify-between mt-8">
           <button
-            className="px-6 py-3 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
+            className={`px-6 py-3 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all ${
+              isSaving ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             onClick={saveCartToBackend}
+            disabled={isSaving}
           >
-            Save Cart
+            {isSaving ? "Saving..." : "Save Cart"}
           </button>
           <button
             className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-all"

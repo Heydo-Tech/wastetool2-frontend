@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../Components/NavBar";
@@ -13,6 +13,7 @@ function WasteImages() {
   const [inputValues, setInputValues] = useState({});
   const [showInput, setShowInput] = useState({});
   const navigate = useNavigate();
+  const productRefs = useRef({}); // Store refs for each product card
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "wasteImage") {
@@ -59,6 +60,26 @@ function WasteImages() {
     });
     setInputValues(initialInputValues);
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      Object.keys(productRefs.current).forEach((productId) => {
+        const ref = productRefs.current[productId];
+        if (ref && !ref.contains(event.target) && showInput[productId]) {
+          console.log(`handleClickOutside: Resetting showInput for product ${productId}`);
+          setShowInput(prev => ({
+            ...prev,
+            [productId]: false
+          }));
+        }
+      });
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showInput]);
 
   const showToast = (message, type = "success") => {
     console.log(`showToast: ${message}, Type: ${type}`);
@@ -143,11 +164,6 @@ function WasteImages() {
         [product._id]: String(getCartQuantity(product._id))
       }));
     }
-    // Reset UI to "Add to Cart"
-    setShowInput(prev => ({
-      ...prev,
-      [product._id]: false
-    }));
   };
 
   const handleAddToCart = (product) => {
@@ -220,11 +236,9 @@ function WasteImages() {
             .map((product) => (
               <div
                 key={product._id}
+                ref={(el) => (productRefs.current[product._id] = el)} // Attach ref to product card
                 className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-all transform hover:-translate-y-1"
               >
-                {/* <div className="text-sm text-gray-500 mb-2">
-                  Quantity in Cart: {getCartQuantity(product._id)}
-                </div> */}
                 <img
                   src={product.Image}
                   alt={getDisplayName(product.productName)}
@@ -255,7 +269,6 @@ function WasteImages() {
                           min="0"
                           value={inputValues[product._id] ?? getCartQuantity(product._id)}
                           onChange={(e) => handleInputChange(product._id, e.target.value)}
-                          onBlur={() => handleInputSubmit(product)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               handleInputSubmit(product);

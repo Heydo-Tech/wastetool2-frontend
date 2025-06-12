@@ -222,9 +222,9 @@ function WasteImages() {
                 key={product._id}
                 className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-all transform hover:-translate-y-1"
               >
-                <div className="text-sm text-gray-500 mb-2">
+                {/* <div className="text-sm text-gray-500 mb-2">
                   Quantity in Cart: {getCartQuantity(product._id)}
-                </div>
+                </div> */}
                 <img
                   src={product.Image}
                   alt={getDisplayName(product.productName)}

@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../Components/NavBar";
+
+// Simple in-memory cache for suggestions
+const suggestionsCache = new Map();
 
 const Viewer = () => {
   const [items, setItems] = useState([]);
@@ -9,13 +12,26 @@ const Viewer = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [searchActive, setSearchActive] = useState(false);
   const [searchProgress, setSearchProgress] = useState("");
-  const [startPage, setStartPage] = useState(""); // New state for start page
-  const [endPage, setEndPage] = useState(""); // New state for end page
-  const [rangeError, setRangeError] = useState(""); // New state for range validation error
+  const [startPage, setStartPage] = useState("");
+  const [endPage, setEndPage] = useState("");
+  const [rangeError, setRangeError] = useState("");
   const limit = 10;
   const navigate = useNavigate();
+
+  // Debounce function to limit API calls
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  };
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "view") {
@@ -28,7 +44,7 @@ const Viewer = () => {
       const fetchItems = async () => {
         try {
           setLoading(true);
-          const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${page}&limit=${limit}`;
+          const url = `http://localhost:9004/carts/flat?page=${page}&limit=${limit}`;
           const response = await fetch(url);
           if (!response.ok)
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -46,25 +62,90 @@ const Viewer = () => {
     }
   }, [page, searchActive]);
 
-  const searchBySKU = async (sku) => {
+  const fetchSuggestions = useCallback(
+    debounce(async (query) => {
+      if (query.length < 3) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      // Check cache first
+      if (suggestionsCache.has(query)) {
+        const cachedSuggestions = suggestionsCache.get(query);
+        setSuggestions(cachedSuggestions);
+        setShowSuggestions(cachedSuggestions.length > 0);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `http://localhost:9004/api/suggestions?query=${encodeURIComponent(query)}`
+        );
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        
+        // Combine productName and SKU for product suggestions
+        const formattedSuggestions = (data.suggestions || []).map(suggestion => {
+          if (suggestion.type === 'product') {
+            return {
+              ...suggestion,
+              displayValue: `${suggestion.productName || 'Unknown Product'} ${suggestion.sku || ''}`.trim()
+            };
+          }
+          return { ...suggestion, displayValue: suggestion.value };
+        });
+
+        // Cache the suggestions
+        suggestionsCache.set(query, formattedSuggestions);
+        // Limit cache size
+        if (suggestionsCache.size > 100) {
+          suggestionsCache.delete(suggestionsCache.keys().next().value);
+        }
+
+        setSuggestions(formattedSuggestions);
+        setShowSuggestions(formattedSuggestions.length > 0);
+      } catch (err) {
+        console.error("Error fetching suggestions:", err);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300),
+    []
+  );
+
+  const searchItems = async ({ query, startDate, endDate }) => {
     try {
       setLoading(true);
       setSearchProgress("Searching...");
-      const url = `https://waste-tool.apnimandi.us/api/carts/search?sku=${encodeURIComponent(sku)}`;
+      const params = new URLSearchParams();
+      if (query) params.append("query", query);
+      if (startDate) params.append("startDate", new Date(startDate).toISOString());
+      if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
+      const url = `http://localhost:9004/api/carts/search?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok)
         throw new Error(`HTTP error! Status: ${response.status}`);
       const data = await response.json();
       const matchedItems = data.items || [];
       setItems(matchedItems);
-      setTotalPages(1); // No pagination for search results
-      setError(
-        matchedItems.length === 0 ? "No items found with this SKU" : null
-      );
+      setTotalPages(1);
+
+      if (matchedItems.length === 0) {
+        setError("No items found for this search");
+        setTimeout(() => {
+          clearSearch();
+        }, 3000);
+      } else {
+        setError(null);
+      }
       setSearchProgress("");
     } catch (err) {
       setError(err.message);
       setSearchProgress("");
+      setTimeout(() => {
+        clearSearch();
+      }, 3000);
     } finally {
       setLoading(false);
     }
@@ -76,7 +157,7 @@ const Viewer = () => {
       setSearchProgress(`Fetching pages ${startPage} to ${endPage}...`);
       const pagePromises = [];
       for (let p = startPage; p <= endPage; p++) {
-        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
+        const url = `http://localhost:9004/carts/flat?page=${p}&limit=${limit}`;
         pagePromises.push(
           fetch(url)
             .then((res) => {
@@ -99,18 +180,48 @@ const Viewer = () => {
   };
 
   const handleSearch = () => {
-    if (searchQuery.length >= 3) {
+    if (searchQuery.length >= 3 || startDate) {
+      if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+        setError("Start date must be before or equal to end date");
+        return;
+      }
       setSearchActive(true);
-      searchBySKU(searchQuery);
+      setShowSuggestions(false);
+      searchItems({ query: searchQuery, startDate, endDate });
+    } else {
+      setError("Search query must be 3+ characters, or select a date");
     }
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    fetchSuggestions(value);
+  };
+
+  const handleSuggestionClick = (e, suggestion) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Suggestion clicked:", suggestion); // Debug log
+    // Populate input with SKU for products or name for users
+    const queryValue = suggestion.type === 'product' ? suggestion.sku || suggestion.value : suggestion.value;
+    console.log("Setting searchQuery to:", queryValue); // Debug log
+    setSearchQuery(queryValue);
+    setShowSuggestions(false);
+    setSearchActive(true);
+    searchItems({ query: queryValue, startDate, endDate });
   };
 
   const clearSearch = () => {
     setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
     setSearchActive(false);
     setPage(1);
     setSearchProgress("");
     setError(null);
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const nextPage = () => page < totalPages && setPage(page + 1);
@@ -198,7 +309,24 @@ const Viewer = () => {
         </div>
       </div>
     );
-  if (error)
+
+  if (error && searchActive)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 border-l-4 border-red-500 animate-shake">
+          <p className="text-lg font-semibold text-red-600">Error: {error}</p>
+          <p className="text-sm text-gray-600 mt-2">Returning to main view in 3 seconds...</p>
+          <button
+            onClick={clearSearch}
+            className="mt-4 px-4 py-2 bg-[#F47820] text-white rounded-lg hover:bg-[#73C049] transition-all"
+          >
+            Return Now
+          </button>
+        </div>
+      </div>
+    );
+
+  if (error && !searchActive)
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 border-l-4 border-red-500 animate-shake">
@@ -214,29 +342,68 @@ const Viewer = () => {
         <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">
           Cart Items Viewer
         </h1>
-        <div className="flex justify-center mb-8 space-x-4">
-          <input
-            type="text"
-            className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-            placeholder="Search by SKU (3+ characters)"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button
-            onClick={handleSearch}
-            disabled={searchQuery.length < 3}
-            className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-          >
-            Search
-          </button>
-          {searchActive && (
+        <div className="flex flex-col items-center mb-8 space-y-4">
+          <div className="relative w-full max-w-3xl">
+            <input
+              type="text"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Search by SKU, User Name, or Product Name (3+ chars)"
+              value={searchQuery}
+              onChange={handleInputChange}
+              onFocus={() => searchQuery.length >= 3 && suggestions.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 300)} // Increased delay
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-md mt-1 max-h-48 overflow-y-auto">
+                {suggestions.map((suggestion, index) => (
+                  <li
+                    key={index}
+                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-800"
+                    onMouseDown={(e) => handleSuggestionClick(e, suggestion)} // Use onMouseDown to capture before blur
+                  >
+                    {suggestion.type === "name" ? `Name: ${suggestion.displayValue}` : suggestion.displayValue}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-gray-700">From:</label>
+              <input
+                type="date"
+                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-gray-700">To:</label>
+              <input
+                type="date"
+                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
             <button
-              onClick={clearSearch}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+              onClick={handleSearch}
+              disabled={searchQuery.length < 3 && !startDate}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
             >
-              Clear
+              Search
             </button>
-          )}
+            {searchActive && (
+              <button
+                onClick={clearSearch}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <div className="mb-6 text-center space-y-4">
           <div>

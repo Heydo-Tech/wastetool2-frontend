@@ -11,6 +11,9 @@ const Viewer = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActive, setSearchActive] = useState(false);
   const [searchProgress, setSearchProgress] = useState("");
+  const [startPage, setStartPage] = useState(""); // New state for start page
+  const [endPage, setEndPage] = useState(""); // New state for end page
+  const [rangeError, setRangeError] = useState(""); // New state for range validation error
   const limit = 10;
   const navigate = useNavigate();
 
@@ -43,41 +46,16 @@ const Viewer = () => {
     }
   }, [page, searchActive]);
 
-  const fetchAllPages = async (sku) => {
+  const searchBySKU = async (sku) => {
     try {
       setLoading(true);
-      setSearchProgress("Fetching page 1...");
-
-      // Fetch first page to get totalPages
-      const firstUrl = `https://waste-tool.apnimandi.us/api/carts/flat?page=1&limit=${limit}`;
-      const firstResponse = await fetch(firstUrl);
-      if (!firstResponse.ok)
-        throw new Error(`HTTP error! Status: ${firstResponse.status}`);
-      const firstData = await firstResponse.json();
-      const totalPages = firstData.pagination?.totalPages || 1;
-      let allItems = firstData.items || [];
-
-      // Fetch remaining pages concurrently
-      const pagePromises = [];
-      for (let p = 2; p <= totalPages; p++) {
-        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
-        pagePromises.push(
-          fetch(url)
-            .then((res) => {
-              setSearchProgress(`Fetching page ${p} of ${totalPages}...`);
-              if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-              return res.json();
-            })
-            .then((data) => data.items || [])
-        );
-      }
-
-      const remainingItems = await Promise.all(pagePromises);
-      allItems = allItems.concat(...remainingItems);
-
-      // Filter for exact SKU match
-      const matchedItems = allItems.filter((item) => item.product?.sku === sku);
-
+      setSearchProgress("Searching...");
+      const url = `https://waste-tool.apnimandi.us/api/carts/search?sku=${encodeURIComponent(sku)}`;
+      const response = await fetch(url);
+      if (!response.ok)
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      const data = await response.json();
+      const matchedItems = data.items || [];
       setItems(matchedItems);
       setTotalPages(1); // No pagination for search results
       setError(
@@ -92,10 +70,38 @@ const Viewer = () => {
     }
   };
 
+  const fetchItemsForPageRange = async (startPage, endPage) => {
+    try {
+      setLoading(true);
+      setSearchProgress(`Fetching pages ${startPage} to ${endPage}...`);
+      const pagePromises = [];
+      for (let p = startPage; p <= endPage; p++) {
+        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
+        pagePromises.push(
+          fetch(url)
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+              return res.json();
+            })
+            .then((data) => data.items || [])
+        );
+      }
+      const allItems = (await Promise.all(pagePromises)).flat();
+      setSearchProgress("");
+      return allItems;
+    } catch (err) {
+      setError(`Failed to fetch items: ${err.message}`);
+      setSearchProgress("");
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSearch = () => {
     if (searchQuery.length >= 3) {
       setSearchActive(true);
-      fetchAllPages(searchQuery);
+      searchBySKU(searchQuery);
     }
   };
 
@@ -138,15 +144,47 @@ const Viewer = () => {
     return [headers, ...rows].join("\n");
   };
 
-  const downloadCSV = () => {
-    const csvData = convertToCSV(items);
-    const blob = new Blob([csvData], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `cart_items${searchActive ? "_search" : "_page_" + page}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const downloadCSV = (type = "current", start = page, end = page) => {
+    if (type === "range") {
+      const startNum = parseInt(startPage);
+      const endNum = parseInt(endPage);
+      if (
+        isNaN(startNum) ||
+        isNaN(endNum) ||
+        startNum < 1 ||
+        endNum < startNum ||
+        endNum > totalPages
+      ) {
+        setRangeError(
+          `Invalid range. Enter pages between 1 and ${totalPages}, with start ≤ end.`
+        );
+        return;
+      }
+      setRangeError("");
+      fetchItemsForPageRange(startNum, endNum).then((allItems) => {
+        if (allItems.length > 0) {
+          const csvData = convertToCSV(allItems);
+          const blob = new Blob([csvData], { type: "text/csv" });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `cart_items_pages_${startNum}-${endNum}.csv`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+        } else {
+          setError("No items found in the selected page range");
+        }
+      });
+    } else {
+      const csvData = convertToCSV(items);
+      const blob = new Blob([csvData], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cart_items${searchActive ? "_search" : "_page_" + page}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
   };
 
   if (loading)
@@ -200,13 +238,50 @@ const Viewer = () => {
             </button>
           )}
         </div>
-        <div className="mb-6 text-center">
-          <button
-            onClick={downloadCSV}
-            className="px-6 py-2 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
-          >
-            Export Current Page to CSV
-          </button>
+        <div className="mb-6 text-center space-y-4">
+          <div>
+            <button
+              onClick={() => downloadCSV("current")}
+              className="px-6 py-2 bg-[#F47820] text-white font-semibold rounded-lg hover:bg-[#73C049] transition-all"
+            >
+              Export Current Page to CSV
+            </button>
+          </div>
+          {!searchActive && (
+            <div className="flex flex-col items-center space-y-2">
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={startPage}
+                  onChange={(e) => setStartPage(e.target.value)}
+                  placeholder="Start Page"
+                  className="w-24 px-2 py-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <span className="self-center">-</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={endPage}
+                  onChange={(e) => setEndPage(e.target.value)}
+                  placeholder="End Page"
+                  className="w-24 px-2 py-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <button
+                  onClick={() => downloadCSV("range")}
+                  disabled={!startPage || !endPage}
+                  className="px-4 py-1 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+                >
+                  Export Selected Pages
+                </button>
+              </div>
+              {rangeError && (
+                <p className="text-sm text-red-500">{rangeError}</p>
+              )}
+            </div>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-md overflow-x-auto">
           <table className="w-full text-left">

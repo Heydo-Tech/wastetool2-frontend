@@ -44,7 +44,7 @@ const Viewer = () => {
       const fetchItems = async () => {
         try {
           setLoading(true);
-          const url = `http://localhost:9004/carts/flat?page=${page}&limit=${limit}`;
+          const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${page}&limit=${limit}`;
           const response = await fetch(url);
           if (!response.ok)
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -80,7 +80,7 @@ const Viewer = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:9004/api/suggestions?query=${encodeURIComponent(query)}`
+          `https://waste-tool.apnimandi.us/api/api/suggestions?query=${encodeURIComponent(query)}`
         );
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
@@ -122,7 +122,7 @@ const Viewer = () => {
       if (query) params.append("query", query);
       if (startDate) params.append("startDate", new Date(startDate).toISOString());
       if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
-      const url = `http://localhost:9004/api/carts/search?${params.toString()}`;
+      const url = `https://waste-tool.apnimandi.us/api/api/carts/search?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok)
         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -157,7 +157,7 @@ const Viewer = () => {
       setSearchProgress(`Fetching pages ${startPage} to ${endPage}...`);
       const pagePromises = [];
       for (let p = startPage; p <= endPage; p++) {
-        const url = `http://localhost:9004/carts/flat?page=${p}&limit=${limit}`;
+        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
         pagePromises.push(
           fetch(url)
             .then((res) => {

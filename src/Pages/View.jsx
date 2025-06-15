@@ -303,12 +303,12 @@ const Viewer = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    const queryValue = suggestion.type === 'product' ? suggestion.sku || suggestion.value : suggestion.value;
+    // Set searchQuery to SKU for products or value for names
+    const queryValue = suggestion.type === 'product' ? suggestion.sku : suggestion.value;
+    console.log("Selected suggestion:", suggestion, "Query value:", queryValue); // Debug log
     setSearchQuery(queryValue);
     setShowSuggestions(false);
-    setSearchActive(true);
-    searchItems({ query: queryValue, startDate, endDate });
-  }, [searchItems, startDate, endDate]);
+  }, []);
 
   const clearSearch = useCallback(() => {
     setSearchQuery("");

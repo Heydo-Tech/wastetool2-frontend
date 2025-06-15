@@ -1,9 +1,47 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../Components/NavBar";
 
-// Simple in-memory cache for suggestions
-const suggestionsCache = new Map();
+// Enhanced caching with TTL and size limits
+class EnhancedCache {
+  constructor(maxSize = 200, ttl = 5 * 60 * 1000) { // 5 minutes TTL
+    this.cache = new Map();
+    this.maxSize = maxSize;
+    this.ttl = ttl;
+  }
+
+  set(key, value) {
+    const expiry = Date.now() + this.ttl;
+    
+    // Remove oldest entries if cache is full
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    
+    this.cache.set(key, { value, expiry });
+  }
+
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    if (Date.now() > item.expiry) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.value;
+  }
+
+  has(key) {
+    return this.get(key) !== null;
+  }
+}
+
+// Enhanced cache instances
+const suggestionsCache = new EnhancedCache(100, 2 * 60 * 1000); // 2 minutes for suggestions
+const searchCache = new EnhancedCache(50, 5 * 60 * 1000); // 5 minutes for search results
 
 const Viewer = () => {
   const [items, setItems] = useState([]);
@@ -24,14 +62,17 @@ const Viewer = () => {
   const limit = 10;
   const navigate = useNavigate();
 
-  // Debounce function to limit API calls
-  const debounce = (func, delay) => {
+  // Optimized debounce with cleanup
+  const debounce = useCallback((func, delay) => {
     let timeoutId;
     return (...args) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => func(...args), delay);
     };
-  };
+  }, []);
+
+  // Memoized API base URL
+  const API_BASE = useMemo(() => 'https://waste-tool.apnimandi.us/api', []);
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "view") {
@@ -39,19 +80,60 @@ const Viewer = () => {
     }
   }, [navigate]);
 
+  // Optimized fetch with abort controller and caching
+  const fetchWithCache = useCallback(async (url, cacheKey = null) => {
+    const controller = new AbortController();
+    
+    try {
+      // Check cache first if cacheKey provided
+      if (cacheKey && searchCache.has(cacheKey)) {
+        return searchCache.get(cacheKey);
+      }
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Cache the result if cacheKey provided
+      if (cacheKey) {
+        searchCache.set(cacheKey, data);
+      }
+      
+      return data;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('Request was aborted');
+        return null;
+      }
+      throw err;
+    }
+  }, []);
+
+  // Optimized items fetching with caching
   useEffect(() => {
     if (!searchActive) {
       const fetchItems = async () => {
         try {
           setLoading(true);
-          const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${page}&limit=${limit}`;
-          const response = await fetch(url);
-          if (!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          const data = await response.json();
-          setItems(data.items || []);
-          setTotalPages(data.pagination?.totalPages || 1);
-          setError(null);
+          const cacheKey = `flat_page_${page}_${limit}`;
+          const url = `${API_BASE}/carts/flat?page=${page}&limit=${limit}`;
+          
+          const data = await fetchWithCache(url, cacheKey);
+          if (data) {
+            setItems(data.items || []);
+            setTotalPages(data.pagination?.totalPages || 1);
+            setError(null);
+          }
         } catch (err) {
           setError(err.message);
         } finally {
@@ -60,8 +142,9 @@ const Viewer = () => {
       };
       fetchItems();
     }
-  }, [page, searchActive]);
+  }, [page, searchActive, API_BASE, fetchWithCache]);
 
+  // Optimized suggestions fetching with enhanced caching
   const fetchSuggestions = useCallback(
     debounce(async (query) => {
       if (query.length < 3) {
@@ -70,9 +153,11 @@ const Viewer = () => {
         return;
       }
 
+      const cacheKey = `suggestions_${query.toLowerCase()}`;
+      
       // Check cache first
-      if (suggestionsCache.has(query)) {
-        const cachedSuggestions = suggestionsCache.get(query);
+      if (suggestionsCache.has(cacheKey)) {
+        const cachedSuggestions = suggestionsCache.get(cacheKey);
         setSuggestions(cachedSuggestions);
         setShowSuggestions(cachedSuggestions.length > 0);
         return;
@@ -80,12 +165,18 @@ const Viewer = () => {
 
       try {
         const response = await fetch(
-          `https://waste-tool.apnimandi.us/api/api/suggestions?query=${encodeURIComponent(query)}`
+          `${API_BASE}/api/suggestions?query=${encodeURIComponent(query)}`,
+          {
+            headers: {
+              'Accept': 'application/json',
+            }
+          }
         );
+        
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         
-        // Combine productName and SKU for product suggestions
+        // Format suggestions
         const formattedSuggestions = (data.suggestions || []).map(suggestion => {
           if (suggestion.type === 'product') {
             return {
@@ -97,11 +188,7 @@ const Viewer = () => {
         });
 
         // Cache the suggestions
-        suggestionsCache.set(query, formattedSuggestions);
-        // Limit cache size
-        if (suggestionsCache.size > 100) {
-          suggestionsCache.delete(suggestionsCache.keys().next().value);
-        }
+        suggestionsCache.set(cacheKey, formattedSuggestions);
 
         setSuggestions(formattedSuggestions);
         setShowSuggestions(formattedSuggestions.length > 0);
@@ -110,34 +197,38 @@ const Viewer = () => {
         setSuggestions([]);
         setShowSuggestions(false);
       }
-    }, 300),
-    []
+    }, 250), // Reduced debounce time for better UX
+    [API_BASE]
   );
 
-  const searchItems = async ({ query, startDate, endDate }) => {
+  // Optimized search with caching
+  const searchItems = useCallback(async ({ query, startDate, endDate }) => {
     try {
       setLoading(true);
       setSearchProgress("Searching...");
+      
       const params = new URLSearchParams();
       if (query) params.append("query", query);
       if (startDate) params.append("startDate", new Date(startDate).toISOString());
       if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
-      const url = `https://waste-tool.apnimandi.us/api/api/carts/search?${params.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      const data = await response.json();
-      const matchedItems = data.items || [];
-      setItems(matchedItems);
-      setTotalPages(1);
+      
+      const cacheKey = `search_${params.toString()}`;
+      const url = `${API_BASE}/api/carts/search?${params.toString()}`;
+      
+      const data = await fetchWithCache(url, cacheKey);
+      if (data) {
+        const matchedItems = data.items || [];
+        setItems(matchedItems);
+        setTotalPages(1);
 
-      if (matchedItems.length === 0) {
-        setError("No items found for this search");
-        setTimeout(() => {
-          clearSearch();
-        }, 3000);
-      } else {
-        setError(null);
+        if (matchedItems.length === 0) {
+          setError("No items found for this search");
+          setTimeout(() => {
+            clearSearch();
+          }, 3000);
+        } else {
+          setError(null);
+        }
       }
       setSearchProgress("");
     } catch (err) {
@@ -149,25 +240,34 @@ const Viewer = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE, fetchWithCache]);
 
-  const fetchItemsForPageRange = async (startPage, endPage) => {
+  // Optimized page range fetching with parallel requests and caching
+  const fetchItemsForPageRange = useCallback(async (startPage, endPage) => {
     try {
       setLoading(true);
       setSearchProgress(`Fetching pages ${startPage} to ${endPage}...`);
-      const pagePromises = [];
-      for (let p = startPage; p <= endPage; p++) {
-        const url = `https://waste-tool.apnimandi.us/api/carts/flat?page=${p}&limit=${limit}`;
-        pagePromises.push(
-          fetch(url)
-            .then((res) => {
-              if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-              return res.json();
-            })
-            .then((data) => data.items || [])
-        );
+      
+      // Create batched requests (max 5 concurrent)
+      const batchSize = 5;
+      const allItems = [];
+      
+      for (let i = startPage; i <= endPage; i += batchSize) {
+        const batchEnd = Math.min(i + batchSize - 1, endPage);
+        const batchPromises = [];
+        
+        for (let p = i; p <= batchEnd; p++) {
+          const cacheKey = `flat_page_${p}_${limit}`;
+          const url = `${API_BASE}/carts/flat?page=${p}&limit=${limit}`;
+          batchPromises.push(
+            fetchWithCache(url, cacheKey).then(data => data?.items || [])
+          );
+        }
+        
+        const batchResults = await Promise.all(batchPromises);
+        allItems.push(...batchResults.flat());
       }
-      const allItems = (await Promise.all(pagePromises)).flat();
+      
       setSearchProgress("");
       return allItems;
     } catch (err) {
@@ -177,9 +277,9 @@ const Viewer = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE, fetchWithCache, limit]);
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     if (searchQuery.length >= 3 || startDate) {
       if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
         setError("Start date must be before or equal to end date");
@@ -191,28 +291,26 @@ const Viewer = () => {
     } else {
       setError("Search query must be 3+ characters, or select a date");
     }
-  };
+  }, [searchQuery, startDate, endDate, searchItems]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     setSearchQuery(value);
     fetchSuggestions(value);
-  };
+  }, [fetchSuggestions]);
 
-  const handleSuggestionClick = (e, suggestion) => {
+  const handleSuggestionClick = useCallback((e, suggestion) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("Suggestion clicked:", suggestion); // Debug log
-    // Populate input with SKU for products or name for users
+    
     const queryValue = suggestion.type === 'product' ? suggestion.sku || suggestion.value : suggestion.value;
-    console.log("Setting searchQuery to:", queryValue); // Debug log
     setSearchQuery(queryValue);
     setShowSuggestions(false);
     setSearchActive(true);
     searchItems({ query: queryValue, startDate, endDate });
-  };
+  }, [searchItems, startDate, endDate]);
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     setSearchQuery("");
     setStartDate("");
     setEndDate("");
@@ -222,25 +320,30 @@ const Viewer = () => {
     setError(null);
     setSuggestions([]);
     setShowSuggestions(false);
-  };
+  }, []);
 
-  const nextPage = () => page < totalPages && setPage(page + 1);
-  const prevPage = () => page > 1 && setPage(page - 1);
+  const nextPage = useCallback(() => page < totalPages && setPage(page + 1), [page, totalPages]);
+  const prevPage = useCallback(() => page > 1 && setPage(page - 1), [page]);
 
-  const convertToCSV = (data) => {
+  // Optimized CSV conversion with better memory usage
+  const convertToCSV = useCallback((data) => {
+    if (!data || data.length === 0) return '';
+    
     const headers = [
       "User Name",
-      "User Role",
+      "User Role", 
       "Product Name",
       "Product Subcategory",
       "Quantity",
       "SKU",
       "Image",
       "Date & Time"
-    ].join(",");
+    ];
 
-    const rows = data.map((item) =>
-      [
+    const csvRows = [headers.join(',')];
+    
+    for (const item of data) {
+      const row = [
         `"${item.user?.name || "N/A"}"`,
         `"${item.user?.role || "N/A"}"`,
         `"${item.product?.productName || "N/A"}"`,
@@ -249,13 +352,14 @@ const Viewer = () => {
         `"${item.product?.sku || "N/A"}"`,
         `"${item.product?.Image || "No Image"}"`,
         `"${item.dateTime ? new Date(item.dateTime).toLocaleString() : "N/A"}"`
-      ].join(",")
-    );
+      ];
+      csvRows.push(row.join(','));
+    }
 
-    return [headers, ...rows].join("\n");
-  };
+    return csvRows.join('\n');
+  }, []);
 
-  const downloadCSV = (type = "current", start = page, end = page) => {
+  const downloadCSV = useCallback((type = "current", start = page, end = page) => {
     if (type === "range") {
       const startNum = parseInt(startPage);
       const endNum = parseInt(endPage);
@@ -296,7 +400,7 @@ const Viewer = () => {
       a.click();
       window.URL.revokeObjectURL(url);
     }
-  };
+  }, [convertToCSV, fetchItemsForPageRange, items, page, searchActive, startPage, endPage, totalPages]);
 
   if (loading)
     return (
@@ -351,7 +455,7 @@ const Viewer = () => {
               value={searchQuery}
               onChange={handleInputChange}
               onFocus={() => searchQuery.length >= 3 && suggestions.length > 0 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 300)} // Increased delay
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
             />
             {showSuggestions && suggestions.length > 0 && (
               <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-md mt-1 max-h-48 overflow-y-auto">
@@ -359,7 +463,7 @@ const Viewer = () => {
                   <li
                     key={index}
                     className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-800"
-                    onMouseDown={(e) => handleSuggestionClick(e, suggestion)} // Use onMouseDown to capture before blur
+                    onMouseDown={(e) => handleSuggestionClick(e, suggestion)}
                   >
                     {suggestion.type === "name" ? `Name: ${suggestion.displayValue}` : suggestion.displayValue}
                   </li>

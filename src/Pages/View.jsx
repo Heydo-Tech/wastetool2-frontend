@@ -60,6 +60,8 @@ const Viewer = () => {
   const [endPage, setEndPage] = useState("");
   const [rangeError, setRangeError] = useState("");
   const limit = 10;
+  const [searchPage, setSearchPage] = useState(1);
+const [searchTotalPages, setSearchTotalPages] = useState(1);
   const navigate = useNavigate();
 
   // Optimized debounce with cleanup
@@ -72,7 +74,7 @@ const Viewer = () => {
   }, []);
 
   // Memoized API base URL
-  const API_BASE = useMemo(() => 'https://waste-tool.apnimandi.us/api', []);
+  const API_BASE = useMemo(() => 'https://waste-tool.apnimandi.us/api', []);   //http://localhost:9004
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "view") {
@@ -202,45 +204,49 @@ const Viewer = () => {
   );
 
   // Optimized search with caching
-  const searchItems = useCallback(async ({ query, startDate, endDate }) => {
-    try {
-      setLoading(true);
-      setSearchProgress("Searching...");
-      
-      const params = new URLSearchParams();
-      if (query) params.append("query", query);
-      if (startDate) params.append("startDate", new Date(startDate).toISOString());
-      if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
-      
-      const cacheKey = `search_${params.toString()}`;
-      const url = `${API_BASE}/api/carts/search?${params.toString()}`;
-      
-      const data = await fetchWithCache(url, cacheKey);
-      if (data) {
-        const matchedItems = data.items || [];
-        setItems(matchedItems);
-        setTotalPages(1);
+// Updated the searchItems function to include pagination
+const searchItems = useCallback(async ({ query, startDate, endDate, page = 1 }) => {
+  try {
+    setLoading(true);
+    setSearchProgress("Searching...");
+    
+    const params = new URLSearchParams();
+    if (query) params.append("query", query);
+    if (startDate) params.append("startDate", new Date(startDate).toISOString());
+    if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
+    params.append("page", page);
+    params.append("limit", limit);
+    
+    const cacheKey = `search_${params.toString()}`;
+    const url = `${API_BASE}/api/carts/search?${params.toString()}`;
+    
+    const data = await fetchWithCache(url, cacheKey);
+    if (data) {
+      const matchedItems = data.items || [];
+      setItems(matchedItems);
+      setSearchTotalPages(data.pagination?.totalPages || 1);
+      setSearchPage(page);
 
-        if (matchedItems.length === 0) {
-          setError("No items found for this search");
-          setTimeout(() => {
-            clearSearch();
-          }, 3000);
-        } else {
-          setError(null);
-        }
+      if (matchedItems.length === 0 && page === 1) {
+        setError("No items found for this search");
+        setTimeout(() => {
+          clearSearch();
+        }, 3000);
+      } else {
+        setError(null);
       }
-      setSearchProgress("");
-    } catch (err) {
-      setError(err.message);
-      setSearchProgress("");
-      setTimeout(() => {
-        clearSearch();
-      }, 3000);
-    } finally {
-      setLoading(false);
     }
-  }, [API_BASE, fetchWithCache]);
+    setSearchProgress("");
+  } catch (err) {
+    setError(err.message);
+    setSearchProgress("");
+    setTimeout(() => {
+      clearSearch();
+    }, 3000);
+  } finally {
+    setLoading(false);
+  }
+}, [API_BASE, fetchWithCache, limit]);
 
   // Optimized page range fetching with parallel requests and caching
   const fetchItemsForPageRange = useCallback(async (startPage, endPage) => {
@@ -279,19 +285,21 @@ const Viewer = () => {
     }
   }, [API_BASE, fetchWithCache, limit]);
 
-  const handleSearch = useCallback(() => {
-    if (searchQuery.length >= 3 || startDate) {
-      if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-        setError("Start date must be before or equal to end date");
-        return;
-      }
-      setSearchActive(true);
-      setShowSuggestions(false);
-      searchItems({ query: searchQuery, startDate, endDate });
-    } else {
-      setError("Search query must be 3+ characters, or select a date");
+// Updated the handleSearch function
+const handleSearch = useCallback(() => {
+  if (searchQuery.length >= 3 || startDate) {
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setError("Start date must be before or equal to end date");
+      return;
     }
-  }, [searchQuery, startDate, endDate, searchItems]);
+    setSearchActive(true);
+    setShowSuggestions(false);
+    setSearchPage(1); // Reset to first page
+    searchItems({ query: searchQuery, startDate, endDate, page: 1 });
+  } else {
+    setError("Search query must be 3+ characters, or select a date");
+  }
+}, [searchQuery, startDate, endDate, searchItems]);
 
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
@@ -310,20 +318,38 @@ const Viewer = () => {
     setShowSuggestions(false);
   }, []);
 
-  const clearSearch = useCallback(() => {
-    setSearchQuery("");
-    setStartDate("");
-    setEndDate("");
-    setSearchActive(false);
-    setPage(1);
-    setSearchProgress("");
-    setError(null);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  }, []);
+// Updated the clearSearch function
+const clearSearch = useCallback(() => {
+  setSearchQuery("");
+  setStartDate("");
+  setEndDate("");
+  setSearchActive(false);
+  setPage(1);
+  setSearchPage(1);
+  setSearchTotalPages(1);
+  setSearchProgress("");
+  setError(null);
+  setSuggestions([]);
+  setShowSuggestions(false);
+}, []);
 
   const nextPage = useCallback(() => page < totalPages && setPage(page + 1), [page, totalPages]);
   const prevPage = useCallback(() => page > 1 && setPage(page - 1), [page]);
+
+  // Added search pagination functions
+const nextSearchPage = useCallback(() => {
+  if (searchPage < searchTotalPages) {
+    const newPage = searchPage + 1;
+    searchItems({ query: searchQuery, startDate, endDate, page: newPage });
+  }
+}, [searchPage, searchTotalPages, searchItems, searchQuery, startDate, endDate]);
+
+const prevSearchPage = useCallback(() => {
+  if (searchPage > 1) {
+    const newPage = searchPage - 1;
+    searchItems({ query: searchQuery, startDate, endDate, page: newPage });
+  }
+}, [searchPage, searchItems, searchQuery, startDate, endDate]);
 
   // Optimized CSV conversion with better memory usage
   const convertToCSV = useCallback((data) => {
@@ -619,27 +645,50 @@ const Viewer = () => {
             </tbody>
           </table>
         </div>
-        {!searchActive && (
-          <div className="flex justify-center items-center mt-6 space-x-4">
-            <button
-              onClick={prevPage}
-              disabled={page === 1}
-              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-            >
-              Previous
-            </button>
-            <span className="text-gray-600">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={nextPage}
-              disabled={page === totalPages}
-              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        {/* Updated the pagination section */}
+{searchActive ? (
+  // Search pagination
+  <div className="flex justify-center items-center mt-6 space-x-4">
+    <button
+      onClick={prevSearchPage}
+      disabled={searchPage === 1}
+      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+    >
+      Previous
+    </button>
+    <span className="text-gray-600">
+      Page {searchPage} of {searchTotalPages}
+    </span>
+    <button
+      onClick={nextSearchPage}
+      disabled={searchPage === searchTotalPages}
+      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+    >
+      Next
+    </button>
+  </div>
+) : (
+  // Regular pagination
+  <div className="flex justify-center items-center mt-6 space-x-4">
+    <button
+      onClick={prevPage}
+      disabled={page === 1}
+      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+    >
+      Previous
+    </button>
+    <span className="text-gray-600">
+      Page {page} of {totalPages}
+    </span>
+    <button
+      onClick={nextPage}
+      disabled={page === totalPages}
+      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+    >
+      Next
+    </button>
+  </div>
+)}
       </div>
     </div>
   );

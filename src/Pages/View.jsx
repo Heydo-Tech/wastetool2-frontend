@@ -4,7 +4,7 @@ import NavBar from "../Components/NavBar";
 
 // Enhanced caching with TTL and size limits
 class EnhancedCache {
-  constructor(maxSize = 200, ttl = 5 * 60 * 1000) { // 5 minutes TTL
+  constructor(maxSize = 200, ttl = 5 * 60 * 1000) {
     this.cache = new Map();
     this.maxSize = maxSize;
     this.ttl = ttl;
@@ -12,36 +12,34 @@ class EnhancedCache {
 
   set(key, value) {
     const expiry = Date.now() + this.ttl;
-    
-    // Remove oldest entries if cache is full
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       this.cache.delete(firstKey);
     }
-    
     this.cache.set(key, { value, expiry });
   }
 
   get(key) {
     const item = this.cache.get(key);
     if (!item) return null;
-    
     if (Date.now() > item.expiry) {
       this.cache.delete(key);
       return null;
     }
-    
     return item.value;
   }
 
   has(key) {
     return this.get(key) !== null;
   }
+
+  clear() {
+    this.cache.clear();
+  }
 }
 
-// Enhanced cache instances
-const suggestionsCache = new EnhancedCache(100, 2 * 60 * 1000); // 2 minutes for suggestions
-const searchCache = new EnhancedCache(50, 5 * 60 * 1000); // 5 minutes for search results
+const suggestionsCache = new EnhancedCache(100, 2 * 60 * 1000);
+const searchCache = new EnhancedCache(50, 5 * 60 * 1000);
 
 const Viewer = () => {
   const [items, setItems] = useState([]);
@@ -59,12 +57,11 @@ const Viewer = () => {
   const [startPage, setStartPage] = useState("");
   const [endPage, setEndPage] = useState("");
   const [rangeError, setRangeError] = useState("");
-  const limit = 10;
   const [searchPage, setSearchPage] = useState(1);
-const [searchTotalPages, setSearchTotalPages] = useState(1);
+  const [searchTotalPages, setSearchTotalPages] = useState(1);
+  const limit = 10;
   const navigate = useNavigate();
 
-  // Optimized debounce with cleanup
   const debounce = useCallback((func, delay) => {
     let timeoutId;
     return (...args) => {
@@ -73,8 +70,7 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
     };
   }, []);
 
-  // Memoized API base URL
-  const API_BASE = useMemo(() => 'https://waste-tool.apnimandi.us/api', []);   //http://localhost:9004
+  const API_BASE = useMemo(() => 'https://waste-tool.apnimandi.us/api', []); // http://localhost:9004
 
   useEffect(() => {
     if (localStorage.getItem("role") !== "view") {
@@ -82,16 +78,12 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
     }
   }, [navigate]);
 
-  // Optimized fetch with abort controller and caching
   const fetchWithCache = useCallback(async (url, cacheKey = null) => {
     const controller = new AbortController();
-    
     try {
-      // Check cache first if cacheKey provided
       if (cacheKey && searchCache.has(cacheKey)) {
         return searchCache.get(cacheKey);
       }
-
       const response = await fetch(url, {
         signal: controller.signal,
         headers: {
@@ -99,18 +91,13 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
           'Content-Type': 'application/json',
         }
       });
-      
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-      
       const data = await response.json();
-      
-      // Cache the result if cacheKey provided
       if (cacheKey) {
         searchCache.set(cacheKey, data);
       }
-      
       return data;
     } catch (err) {
       if (err.name === 'AbortError') {
@@ -121,20 +108,97 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
     }
   }, []);
 
-  // Optimized items fetching with caching
+  // Moved clearSearch above searchItems
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
+    setSearchActive(false);
+    setPage(1);
+    setSearchPage(1);
+    setSearchTotalPages(1);
+    setSearchProgress("");
+    setError(null);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    searchCache.clear();
+  }, []);
+
+  const searchItems = useCallback(async ({ query, startDate, endDate, page = 1 }) => {
+    try {
+      setLoading(true);
+      setSearchProgress("Searching...");
+      const params = new URLSearchParams();
+      if (query) params.append("query", query.trim());
+      if (startDate) params.append("startDate", new Date(startDate).toISOString());
+      if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
+      params.append("page", page);
+      params.append("limit", limit);
+      const cacheKey = `search_${params.toString()}`;
+      const url = `${API_BASE}/api/carts/search?${params.toString()}`;
+      console.log("Search URL:", url);
+      const data = await fetchWithCache(url, cacheKey);
+      if (data) {
+        const newItems = data.items || [];
+        setItems(newItems);
+        const newSearchTotalPages = data.pagination?.totalPages || 1;
+        setSearchTotalPages(newSearchTotalPages);
+        if (page > newSearchTotalPages) {
+          setSearchPage(1);
+          searchItems({ query, startDate, endDate, page: 1 });
+          return;
+        }
+        setSearchPage(page);
+        const itemIds = newItems.map(item => item._id || JSON.stringify(item));
+        const uniqueIds = new Set(itemIds);
+        if (uniqueIds.size < itemIds.length) {
+          console.warn(`Duplicate items detected on search page ${page}:`, itemIds);
+        }
+        if (newItems.length === 0) {
+          setError(`No items found for ${query ? `"${query}"` : 'this search'} on page ${page}.`);
+          setTimeout(() => {
+            if (page === 1) clearSearch();
+            else setError(null);
+          }, 3000);
+        } else {
+          setError(null);
+        }
+      }
+      setSearchProgress("");
+    } catch (err) {
+      setError(`Search failed: ${err.message}`);
+      setSearchProgress("");
+      setTimeout(() => { clearSearch(); }, 3000);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE, fetchWithCache, limit, clearSearch]);
+
   useEffect(() => {
     if (!searchActive) {
       const fetchItems = async () => {
         try {
           setLoading(true);
+          if (page < 1 || page > totalPages) {
+            setPage(1);
+            return;
+          }
           const cacheKey = `flat_page_${page}_${limit}`;
           const url = `${API_BASE}/carts/flat?page=${page}&limit=${limit}`;
-          
           const data = await fetchWithCache(url, cacheKey);
           if (data) {
-            setItems(data.items || []);
-            setTotalPages(data.pagination?.totalPages || 1);
-            setError(null);
+            const newItems = data.items || [];
+            setItems(newItems);
+            const newTotalPages = data.pagination?.totalPages || 1;
+            setTotalPages(newTotalPages);
+            if (page > newTotalPages) {
+              setPage(1);
+            }
+            const itemIds = newItems.map(item => item._id || JSON.stringify(item));
+            const uniqueIds = new Set(itemIds);
+            if (uniqueIds.size < itemIds.length) {
+              console.warn(`Duplicate items detected on page ${page}:`, itemIds);
+            }
           }
         } catch (err) {
           setError(err.message);
@@ -144,9 +208,8 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
       };
       fetchItems();
     }
-  }, [page, searchActive, API_BASE, fetchWithCache]);
+  }, [page, searchActive, API_BASE, fetchWithCache, totalPages, limit]);
 
-  // Optimized suggestions fetching with enhanced caching
   const fetchSuggestions = useCallback(
     debounce(async (query) => {
       if (query.length < 3) {
@@ -154,17 +217,13 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
         setShowSuggestions(false);
         return;
       }
-
       const cacheKey = `suggestions_${query.toLowerCase()}`;
-      
-      // Check cache first
       if (suggestionsCache.has(cacheKey)) {
         const cachedSuggestions = suggestionsCache.get(cacheKey);
         setSuggestions(cachedSuggestions);
         setShowSuggestions(cachedSuggestions.length > 0);
         return;
       }
-
       try {
         const response = await fetch(
           `${API_BASE}/api/suggestions?query=${encodeURIComponent(query)}`,
@@ -174,11 +233,8 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
             }
           }
         );
-        
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
-        
-        // Format suggestions
         const formattedSuggestions = (data.suggestions || []).map(suggestion => {
           if (suggestion.type === 'product') {
             return {
@@ -188,10 +244,7 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
           }
           return { ...suggestion, displayValue: suggestion.value };
         });
-
-        // Cache the suggestions
         suggestionsCache.set(cacheKey, formattedSuggestions);
-
         setSuggestions(formattedSuggestions);
         setShowSuggestions(formattedSuggestions.length > 0);
       } catch (err) {
@@ -199,69 +252,19 @@ const [searchTotalPages, setSearchTotalPages] = useState(1);
         setSuggestions([]);
         setShowSuggestions(false);
       }
-    }, 250), // Reduced debounce time for better UX
+    }, 250),
     [API_BASE]
   );
 
-  // Optimized search with caching
-// Updated the searchItems function to include pagination
-const searchItems = useCallback(async ({ query, startDate, endDate, page = 1 }) => {
-  try {
-    setLoading(true);
-    setSearchProgress("Searching...");
-    
-    const params = new URLSearchParams();
-    if (query) params.append("query", query);
-    if (startDate) params.append("startDate", new Date(startDate).toISOString());
-    if (endDate) params.append("endDate", new Date(endDate + "T23:59:59.999Z").toISOString());
-    params.append("page", page);
-    params.append("limit", limit);
-    
-    const cacheKey = `search_${params.toString()}`;
-    const url = `${API_BASE}/api/carts/search?${params.toString()}`;
-    
-    const data = await fetchWithCache(url, cacheKey);
-    if (data) {
-      const matchedItems = data.items || [];
-      setItems(matchedItems);
-      setSearchTotalPages(data.pagination?.totalPages || 1);
-      setSearchPage(page);
-
-      if (matchedItems.length === 0 && page === 1) {
-        setError("No items found for this search");
-        setTimeout(() => {
-          clearSearch();
-        }, 3000);
-      } else {
-        setError(null);
-      }
-    }
-    setSearchProgress("");
-  } catch (err) {
-    setError(err.message);
-    setSearchProgress("");
-    setTimeout(() => {
-      clearSearch();
-    }, 3000);
-  } finally {
-    setLoading(false);
-  }
-}, [API_BASE, fetchWithCache, limit]);
-
-  // Optimized page range fetching with parallel requests and caching
   const fetchItemsForPageRange = useCallback(async (startPage, endPage) => {
     try {
       setLoading(true);
       setSearchProgress(`Fetching pages ${startPage} to ${endPage}...`);
-      
-      // Create batched requests (max 5 concurrent)
       const batchSize = 5;
       const allItems = [];
-      
       for (let i = startPage; i <= endPage; i += batchSize) {
         const batchEnd = Math.min(i + batchSize - 1, endPage);
         const batchPromises = [];
-        
         for (let p = i; p <= batchEnd; p++) {
           const cacheKey = `flat_page_${p}_${limit}`;
           const url = `${API_BASE}/carts/flat?page=${p}&limit=${limit}`;
@@ -269,11 +272,14 @@ const searchItems = useCallback(async ({ query, startDate, endDate, page = 1 }) 
             fetchWithCache(url, cacheKey).then(data => data?.items || [])
           );
         }
-        
         const batchResults = await Promise.all(batchPromises);
         allItems.push(...batchResults.flat());
       }
-      
+      const itemIds = allItems.map(item => item._id || JSON.stringify(item));
+      const uniqueIds = new Set(itemIds);
+      if (uniqueIds.size < itemIds.length) {
+        console.warn(`Duplicate items detected in page range ${startPage}-${endPage}:`, itemIds);
+      }
       setSearchProgress("");
       return allItems;
     } catch (err) {
@@ -285,21 +291,22 @@ const searchItems = useCallback(async ({ query, startDate, endDate, page = 1 }) 
     }
   }, [API_BASE, fetchWithCache, limit]);
 
-// Updated the handleSearch function
-const handleSearch = useCallback(() => {
-  if (searchQuery.length >= 3 || startDate) {
-    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-      setError("Start date must be before or equal to end date");
-      return;
+  const handleSearch = useCallback(() => {
+    if (searchQuery.length >= 3 || startDate) {
+      if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+        setError("Start date must be before or equal to end date");
+        return;
+      }
+      setSearchActive(true);
+      setShowSuggestions(false);
+      setSearchPage(1);
+      setPage(1);
+      searchCache.clear();
+      searchItems({ query: searchQuery, startDate, endDate, page: 1 });
+    } else {
+      setError("Search query must be 3+ characters, or select a date");
     }
-    setSearchActive(true);
-    setShowSuggestions(false);
-    setSearchPage(1); // Reset to first page
-    searchItems({ query: searchQuery, startDate, endDate, page: 1 });
-  } else {
-    setError("Search query must be 3+ characters, or select a date");
-  }
-}, [searchQuery, startDate, endDate, searchItems]);
+  }, [searchQuery, startDate, endDate, searchItems]);
 
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
@@ -310,54 +317,40 @@ const handleSearch = useCallback(() => {
   const handleSuggestionClick = useCallback((e, suggestion) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Set searchQuery to SKU for products or value for names
     const queryValue = suggestion.type === 'product' ? suggestion.sku : suggestion.value;
-    console.log("Selected suggestion:", suggestion, "Query value:", queryValue); // Debug log
-    setSearchQuery(queryValue);
+    console.log("Selected suggestion:", suggestion, "Query value:", queryValue);
+    if (!queryValue || queryValue.trim() === '') {
+      setError("Invalid suggestion selected (missing SKU or name).");
+      setTimeout(() => setError(null), 3000);
+      setShowSuggestions(false);
+      return;
+    }
+    setSearchQuery(queryValue.trim());
     setShowSuggestions(false);
   }, []);
-
-// Updated the clearSearch function
-const clearSearch = useCallback(() => {
-  setSearchQuery("");
-  setStartDate("");
-  setEndDate("");
-  setSearchActive(false);
-  setPage(1);
-  setSearchPage(1);
-  setSearchTotalPages(1);
-  setSearchProgress("");
-  setError(null);
-  setSuggestions([]);
-  setShowSuggestions(false);
-}, []);
 
   const nextPage = useCallback(() => page < totalPages && setPage(page + 1), [page, totalPages]);
   const prevPage = useCallback(() => page > 1 && setPage(page - 1), [page]);
 
-  // Added search pagination functions
-const nextSearchPage = useCallback(() => {
-  if (searchPage < searchTotalPages) {
-    const newPage = searchPage + 1;
-    searchItems({ query: searchQuery, startDate, endDate, page: newPage });
-  }
-}, [searchPage, searchTotalPages, searchItems, searchQuery, startDate, endDate]);
+  const nextSearchPage = useCallback(() => {
+    if (searchPage < searchTotalPages) {
+      const newPage = searchPage + 1;
+      searchItems({ query: searchQuery, startDate, endDate, page: newPage });
+    }
+  }, [searchPage, searchTotalPages, searchItems, searchQuery, startDate, endDate]);
 
-const prevSearchPage = useCallback(() => {
-  if (searchPage > 1) {
-    const newPage = searchPage - 1;
-    searchItems({ query: searchQuery, startDate, endDate, page: newPage });
-  }
-}, [searchPage, searchItems, searchQuery, startDate, endDate]);
+  const prevSearchPage = useCallback(() => {
+    if (searchPage > 1) {
+      const newPage = searchPage - 1;
+      searchItems({ query: searchQuery, startDate, endDate, page: newPage });
+    }
+  }, [searchPage, searchItems, searchQuery, startDate, endDate]);
 
-  // Optimized CSV conversion with better memory usage
   const convertToCSV = useCallback((data) => {
     if (!data || data.length === 0) return '';
-    
     const headers = [
       "User Name",
-      "User Role", 
+      "User Role",
       "Product Name",
       "Product Subcategory",
       "Quantity",
@@ -365,9 +358,7 @@ const prevSearchPage = useCallback(() => {
       "Image",
       "Date & Time"
     ];
-
     const csvRows = [headers.join(',')];
-    
     for (const item of data) {
       const row = [
         `"${item.user?.name || "N/A"}"`,
@@ -381,7 +372,6 @@ const prevSearchPage = useCallback(() => {
       ];
       csvRows.push(row.join(','));
     }
-
     return csvRows.join('\n');
   }, []);
 
@@ -584,46 +574,23 @@ const prevSearchPage = useCallback(() => {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-4 py-3 text-gray-700 font-semibold">
-                  User Name
-                </th>
-                <th className="px-4 py-3 text-gray-700 font-semibold">
-                  Product Name
-                </th>
-                <th className="px-4 py-3 text-gray-700 font-semibold">
-                  Product Subcategory
-                </th>
-                <th className="px-4 py-3 text-gray-700 font-semibold">
-                  Quantity
-                </th>
+                <th className="px-4 py-3 text-gray-700 font-semibold">User Name</th>
+                <th className="px-4 py-3 text-gray-700 font-semibold">Product Name</th>
+                <th className="px-4 py-3 text-gray-700 font-semibold">Product Subcategory</th>
+                <th className="px-4 py-3 text-gray-700 font-semibold">Quantity</th>
                 <th className="px-4 py-3 text-gray-700 font-semibold">SKU</th>
                 <th className="px-4 py-3 text-gray-700 font-semibold">Image</th>
-                <th className="px-4 py-3 text-gray-700 font-semibold">
-                  Date & Time
-                </th>
+                <th className="px-4 py-3 text-gray-700 font-semibold">Date & Time</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, index) => (
-                <tr
-                  key={index}
-                  className="border-b hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.user?.name || "N/A"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.product?.productName || "N/A"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.product?.productSubcategory || "N/A"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.quantity || "N/A"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.product?.sku || "N/A"}
-                  </td>
+              {items.map((item) => (
+                <tr key={item._id || JSON.stringify(item)} className="border-b hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-gray-600">{item.user?.name || "N/A"}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.product?.productName || "N/A"}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.product?.productSubcategory || "N/A"}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.quantity || "N/A"}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.product?.sku || "N/A"}</td>
                   <td className="px-4 py-3">
                     {item.product?.Image ? (
                       <img
@@ -636,59 +603,54 @@ const prevSearchPage = useCallback(() => {
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {item.dateTime
-                      ? new Date(item.dateTime).toLocaleString()
-                      : "N/A"}
+                    {item.dateTime ? new Date(item.dateTime).toLocaleString() : "N/A"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {/* Updated the pagination section */}
-{searchActive ? (
-  // Search pagination
-  <div className="flex justify-center items-center mt-6 space-x-4">
-    <button
-      onClick={prevSearchPage}
-      disabled={searchPage === 1}
-      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-    >
-      Previous
-    </button>
-    <span className="text-gray-600">
-      Page {searchPage} of {searchTotalPages}
-    </span>
-    <button
-      onClick={nextSearchPage}
-      disabled={searchPage === searchTotalPages}
-      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-    >
-      Next
-    </button>
-  </div>
-) : (
-  // Regular pagination
-  <div className="flex justify-center items-center mt-6 space-x-4">
-    <button
-      onClick={prevPage}
-      disabled={page === 1}
-      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-    >
-      Previous
-    </button>
-    <span className="text-gray-600">
-      Page {page} of {totalPages}
-    </span>
-    <button
-      onClick={nextPage}
-      disabled={page === totalPages}
-      className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
-    >
-      Next
-    </button>
-  </div>
-)}
+        {searchActive ? (
+          <div className="flex justify-center items-center mt-6 space-x-4">
+            <button
+              onClick={prevSearchPage}
+              disabled={searchPage === 1}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Previous
+            </button>
+            <span className="text-gray-600">
+              Page {searchPage} of {searchTotalPages}
+            </span>
+            <button
+              onClick={nextSearchPage}
+              disabled={searchPage === searchTotalPages}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Next
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-center items-center mt-6 space-x-4">
+            <button
+              onClick={prevPage}
+              disabled={page === 1}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Previous
+            </button>
+            <span className="text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={page === totalPages}
+              className="px-4 py-2 bg-[#F47820] text-white rounded-lg disabled:bg-gray-300 hover:bg-[#73C049] transition-all"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

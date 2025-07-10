@@ -94,12 +94,16 @@ function WasteImages() {
 
   const updateCartQuantity = (product, newQuantity) => {
     if (newQuantity < 0) return;
-    console.log("updateCartQuantity: Product:", product._id, "New Quantity:", newQuantity);
+    
+    // Round to 1 decimal place to avoid floating point precision issues
+    const roundedQuantity = Math.round(newQuantity * 10) / 10;
+    
+    console.log("updateCartQuantity: Product:", product._id, "New Quantity:", roundedQuantity);
 
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     let updatedCart;
 
-    if (newQuantity === 0) {
+    if (roundedQuantity === 0) {
       updatedCart = existingCart.filter((item) => item._id !== product._id);
       showToast("Removed from cart!", "info");
     } else {
@@ -108,10 +112,10 @@ function WasteImages() {
       );
       if (isProductInCart) {
         updatedCart = existingCart.map((item) =>
-          item._id === product._id ? { ...item, quantity: newQuantity } : item
+          item._id === product._id ? { ...item, quantity: roundedQuantity } : item
         );
       } else {
-        updatedCart = [...existingCart, { ...product, quantity: newQuantity }];
+        updatedCart = [...existingCart, { ...product, quantity: roundedQuantity }];
       }
       showToast("Updated cart!", "success");
     }
@@ -121,7 +125,7 @@ function WasteImages() {
     setCartCount(updatedCart.reduce((acc, item) => acc + item.quantity, 0));
     setInputValues(prev => ({
       ...prev,
-      [product._id]: String(newQuantity)
+      [product._id]: String(roundedQuantity)
     }));
   };
 
@@ -144,25 +148,34 @@ function WasteImages() {
 
   const handleInputChange = (productId, value) => {
     console.log(`handleInputChange: Product: ${productId}, Value: "${value}"`);
-    setInputValues(prev => ({
-      ...prev,
-      [productId]: value
-    }));
+    
+    // Only allow numbers, decimal point, and empty string
+    const numericRegex = /^[0-9]*\.?[0-9]*$/;
+    
+    if (value === "" || numericRegex.test(value)) {
+      setInputValues(prev => ({
+        ...prev,
+        [productId]: value
+      }));
+    }
   };
 
   const handleInputSubmit = (product) => {
     const inputValue = inputValues[product._id] || "";
     console.log(`handleInputSubmit: Product: ${product._id}, Input: "${inputValue}"`);
-    const parsedValue = parseFloat(inputValue);
+    
     if (inputValue === "") {
       updateCartQuantity(product, 0);
-    } else if (!isNaN(parsedValue) && parsedValue >= 0) {
-      updateCartQuantity(product, parsedValue);
     } else {
-      setInputValues(prev => ({
-        ...prev,
-        [product._id]: String(getCartQuantity(product._id))
-      }));
+      const parsedValue = parseFloat(inputValue);
+      if (!isNaN(parsedValue) && parsedValue >= 0) {
+        updateCartQuantity(product, parsedValue);
+      } else {
+        setInputValues(prev => ({
+          ...prev,
+          [product._id]: String(getCartQuantity(product._id))
+        }));
+      }
     }
   };
 
@@ -258,16 +271,15 @@ function WasteImages() {
                           onClick={() =>
                             updateCartQuantity(
                               product,
-                              Math.max(0, getCartQuantity(product._id) - 0.1)
+                              Math.max(0, getCartQuantity(product._id) - 1)
                             )
                           }
                         >
                           -
                         </button>
                         <input
-                          type="number"
+                          type="text"
                           min="0"
-                          step="0.1"
                           value={inputValues[product._id] ?? getCartQuantity(product._id)}
                           onChange={(e) => handleInputChange(product._id, e.target.value)}
                           onKeyDown={(e) => {
@@ -276,13 +288,14 @@ function WasteImages() {
                             }
                           }}
                           className="w-16 text-center text-lg font-semibold text-gray-800 border border-gray-300 rounded focus:ring-[#73C049] focus:border-[#73C049]"
+                          placeholder="0"
                         />
                         <button
                           className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
                           onClick={() =>
                             updateCartQuantity(
                               product,
-                              getCartQuantity(product._id) + 0.1
+                              getCartQuantity(product._id) + 1
                             )
                           }
                         >

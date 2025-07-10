@@ -153,7 +153,7 @@ function WasteImages() {
   const handleInputSubmit = (product) => {
     const inputValue = inputValues[product._id] || "";
     console.log(`handleInputSubmit: Product: ${product._id}, Input: "${inputValue}"`);
-    const parsedValue = parseInt(inputValue, 10);
+    const parsedValue = parseFloat(inputValue);
     if (inputValue === "") {
       updateCartQuantity(product, 0);
     } else if (!isNaN(parsedValue) && parsedValue >= 0) {
@@ -258,7 +258,7 @@ function WasteImages() {
                           onClick={() =>
                             updateCartQuantity(
                               product,
-                              getCartQuantity(product._id) - 1
+                              Math.max(0, getCartQuantity(product._id) - 0.1)
                             )
                           }
                         >
@@ -267,6 +267,7 @@ function WasteImages() {
                         <input
                           type="number"
                           min="0"
+                          step="0.1"
                           value={inputValues[product._id] ?? getCartQuantity(product._id)}
                           onChange={(e) => handleInputChange(product._id, e.target.value)}
                           onKeyDown={(e) => {
@@ -274,14 +275,14 @@ function WasteImages() {
                               handleInputSubmit(product);
                             }
                           }}
-                          className="w-12 text-center text-lg font-semibold text-gray-800 border border-gray-300 rounded focus:ring-[#73C049] focus:border-[#73C049]"
+                          className="w-16 text-center text-lg font-semibold text-gray-800 border border-gray-300 rounded focus:ring-[#73C049] focus:border-[#73C049]"
                         />
                         <button
                           className="px-3 py-1 bg-[#73C049] text-white rounded-lg hover:bg-[#5DA738] transition-all"
                           onClick={() =>
                             updateCartQuantity(
                               product,
-                              getCartQuantity(product._id) + 1
+                              getCartQuantity(product._id) + 0.1
                             )
                           }
                         >

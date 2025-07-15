@@ -62,7 +62,7 @@ function Cart() {
     }));
 
     try {
-      const response = await fetch("https://waste-tool.apnimandi.us/api/cart", {
+      const response = await fetch("https://waste-tool.apnimandi.us/api/cart", { // http://localhost:9004/cart
         method: "POST",
         headers: {
           "Content-Type": "application/json",

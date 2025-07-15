@@ -22,7 +22,7 @@ function WasteImages() {
   }, [navigate]);
 
   useEffect(() => {
-    console.log("useEffect: Fetching data and initializing cart");
+    // console.log("useEffect: Fetching data and initializing cart");
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -38,7 +38,7 @@ function WasteImages() {
           };
           return getSortName(a.productName).localeCompare(getSortName(b.productName));
         });
-        console.log("Sorted products:", sortedProducts.map(p => p.productName));
+        // console.log("Sorted products:", sortedProducts.map(p => p.productName));
         setProducts(sortedProducts);
         setError(null);
       } catch (error) {
@@ -66,7 +66,7 @@ function WasteImages() {
       Object.keys(productRefs.current).forEach((productId) => {
         const ref = productRefs.current[productId];
         if (ref && !ref.contains(event.target) && showInput[productId]) {
-          console.log(`handleClickOutside: Resetting showInput for product ${productId}`);
+          // console.log(`handleClickOutside: Resetting showInput for product ${productId}`);
           setShowInput(prev => ({
             ...prev,
             [productId]: false
@@ -82,7 +82,7 @@ function WasteImages() {
   }, [showInput]);
 
   const showToast = (message, type = "success") => {
-    console.log(`showToast: ${message}, Type: ${type}`);
+    // console.log(`showToast: ${message}, Type: ${type}`);
     const toast = document.createElement("div");
     toast.innerText = message;
     toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white ${
@@ -98,7 +98,7 @@ function WasteImages() {
     // Round to 1 decimal place to avoid floating point precision issues
     const roundedQuantity = Math.round(newQuantity * 10) / 10;
     
-    console.log("updateCartQuantity: Product:", product._id, "New Quantity:", roundedQuantity);
+    // console.log("updateCartQuantity: Product:", product._id, "New Quantity:", roundedQuantity);
 
     const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
     let updatedCart;
@@ -136,18 +136,18 @@ function WasteImages() {
 
   const getDisplayName = (name) => {
     if (!name) {
-      console.log("getDisplayName: Empty name");
+      // console.log("getDisplayName: Empty name");
       return "";
     }
     const lowerName = name.toLowerCase().trim();
     const prefixRegex = /^apni mandi\s+/i;
     const displayName = name.replace(prefixRegex, "").trim();
-    console.log(`getDisplayName: Input: "${name}", Output: "${displayName}"`);
+    // console.log(`getDisplayName: Input: "${name}", Output: "${displayName}"`);
     return displayName;
   };
 
   const handleInputChange = (productId, value) => {
-    console.log(`handleInputChange: Product: ${productId}, Value: "${value}"`);
+    // console.log(`handleInputChange: Product: ${productId}, Value: "${value}"`);
     
     // Only allow numbers, decimal point, and empty string
     const numericRegex = /^[0-9]*\.?[0-9]*$/;
@@ -162,7 +162,7 @@ function WasteImages() {
 
   const handleInputSubmit = (product) => {
     const inputValue = inputValues[product._id] || "";
-    console.log(`handleInputSubmit: Product: ${product._id}, Input: "${inputValue}"`);
+    // console.log(`handleInputSubmit: Product: ${product._id}, Input: "${inputValue}"`);
     
     if (inputValue === "") {
       updateCartQuantity(product, 0);
@@ -170,6 +170,7 @@ function WasteImages() {
       const parsedValue = parseFloat(inputValue);
       if (!isNaN(parsedValue) && parsedValue >= 0) {
         updateCartQuantity(product, parsedValue);
+        // console.log(`Updated cart quantity for product ${product._id}: ${parsedValue}`);
       } else {
         setInputValues(prev => ({
           ...prev,
@@ -194,7 +195,7 @@ function WasteImages() {
     }
   };
 
-  console.log("Rendering WasteImages: products:", products.length, "cart:", cart.length, "showInput:", showInput);
+  // console.log("Rendering WasteImages: products:", products.length, "cart:", cart.length, "showInput:", showInput);
 
   if (loading)
     return (
